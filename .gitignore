@@ -1,0 +1,10 @@
+.DS_Store
+data/
+*.html
+*.png
+*cache*
+.Rproj.user/
+.Rhistory
+*.RDS
+*.Rapp.history
+*.RData

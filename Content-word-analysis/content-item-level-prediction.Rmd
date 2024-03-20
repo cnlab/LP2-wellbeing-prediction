@@ -1,0 +1,884 @@
+---
+title: "Cotent-Item-level-Prediction"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "content_word/item_")
+options(scipen=999)
+```
+
+
+```{r load packages and installize conda environment, include=FALSE}
+if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
+library(pacman)
+setwd("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/models")
+
+
+
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,install = T) 
+# Set-up an environment with text-required python packages
+```
+
+```{r eval=FALSE, include=FALSE}
+library(text)
+textrpp_install()
+textrpp_initialize()
+
+```
+
+```{r}
+plot_aes = theme_minimal() +
+  theme(legend.position = "none",
+        text = element_text(family = "Futura Medium"),
+        axis.ticks.y = element_blank())
+```
+
+```{r define functions}
+calculate_and_store_rmse <- function(column_name, model_names, actual_values, predicted_values) {
+  results_list <- list()
+  
+  for (col_name in model_names) {
+    if (grepl(column_name, col_name)) {
+      rmse_value <- Metrics::rmse(actual_values[[column_name]], predicted_values[[col_name]])
+      results_list <- c(results_list, list(data.frame(Model = col_name, RMSE = rmse_value)))
+    }
+  }
+  
+  return(results_list)
+}
+
+# Initialize an empty list to store results
+results <- list()
+
+
+table <- function(correlation_data) {
+  # Convert the character columns to factors for better rendering
+  correlation_data$descriptions <- gsub("^Q[0-9]+\\.\\.(.+?)\\.\\.Transcription", "\\1", correlation_data$descriptions)
+  correlation_data$descriptions <- gsub("(\\d)_([A-Za-z])", "\\1~\\2", correlation_data$descriptions)
+
+  correlation_data$descriptions <- as.factor(correlation_data$descriptions)
+  correlation_data$alternative <- as.factor(correlation_data$alternative)
+  # Round the numeric columns to three decimal places
+  correlation_data$correlation <- round(as.numeric(correlation_data$correlation), 2)
+  correlation_data$t_statistics <- round(as.numeric(correlation_data$t_statistics), 3)
+  correlation_data$p_value <- sapply(correlation_data$p_value, function(p) {
+    ifelse(as.numeric(p) < 0.001, "< .001", 
+           ifelse(as.numeric(p) == 1, "1.000", 
+                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
+  })
+  correlation_data$p_value_corrected <- round(as.numeric(correlation_data$p_value_corrected), 3)
+
+  # Add the RMSE column
+  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 2)
+
+  # Create the DataTable
+  datatable(correlation_data, extensions = 'FixedColumns', 
+            filter = list(position = 'top', clear = FALSE),
+            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+}
+
+```
+
+# load data
+
+```{r load-data}
+df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/surveys_scored/LP2_transcriptions_behavioral.csv")
+
+embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/embeddings/Content_word_embeddings.rds")
+```
+
+```{r eval=FALSE, include=FALSE}
+colnames(df)
+```
+
+# construct models {.tabset}
+
+## Positive Affect {.tabset}
+
+*Prompts*
+
+> Positive Affect 1. Describe a recent time when you felt calm or at ease.
+
+> Positive Affect 2. Describe a recent time when you felt joyful or excited.
+
+> Positive Affect 3. Describe a recent time when you felt interested.
+
+*Qualtrics Questions*
+
+> SWLS 1 In most ways my life is close to my ideal
+
+> SWLS 2 The conditions of my life are excellent
+
+> SWLS 3 I am satisfied with my life
+
+> SWLS 4 So far I have gotten the important things I want in life
+
+> SWLS 5 If I could live my life over, I would change almost nothing
+
+### Models {.tabset}
+
+#### Estimates
+
+```{r}
+affect <- df %>%
+  select(starts_with("pre_SWLS"))
+
+
+if (!file.exists("content_affect_item_output.RDS")) {
+  affect_item <- textTrainLists(
+    x = embeddings$texts[7:9],
+    y = affect[1:6],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "positive affect content words predicting pre-subscales and WB, N = 181"
+  )
+   # Save the model output to an RDS file
+  saveRDS(affect_item, "content_affect_item_output.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  affect_item <- readRDS("content_affect_item_output.RDS")
+}
+
+affect_item_predictions <-as.data.frame(affect_item$predictions[1:15])
+models <- c(colnames(affect_item$predictions[1:15]))
+
+
+for (i in 1:5) {
+  column_name <- paste0("pre_SWLS_", i)
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = affect,
+    predicted_values = affect_item_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+affect_rmse <- results %>%
+  bind_rows() %>%
+  distinct()
+}
+
+affect_item_results <- head(affect_item$results, 15)
+affect_item_results$RMSE <- affect_rmse$RMSE
+table(affect_item_results)
+```  
+
+```{r affect,fig.height=10, fig.width=10}
+### Heatmap
+
+
+affect_item_results$prompt <- str_extract(affect_item_results$descriptions, "^[^_]+")
+affect_item_results$SWLS <- str_extract(affect_item_results$descriptions, "[^_]+$")
+
+# Remove the original "descriptions" column
+affect_item_results <- affect_item_results %>% 
+  select(-descriptions)
+
+affect_item_results$correlation <- as.numeric(affect_item_results$correlation)
+
+affect_item_results <- affect_item_results %>% 
+  dplyr:: mutate(prompt = recode(prompt, 
+                         "Q1..positive" = "1.Describe a recent time when you felt calm or at ease.",
+                         "Q2..positive" = "2.Describe a recent time when you felt joyful or excited.",
+                         "Q3..positive" = "3.Describe a recent time when you felt interested."),) %>% 
+  dplyr:: mutate(SWLS = recode(SWLS, 
+                       "1" = "In most ways my life is close to my ideal",
+                       "2" = "The conditions of my life are excellent",
+                       "3" = "I am satisfied with my life",
+                       "4" = "So far I have gotten the important things I want in life",
+                       "5" = "If I could live my life over, I would change almost nothing"))
+
+affect_heat <- ggplot(affect_item_results, aes(x = prompt, y = SWLS, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(correlation, 2)), color = "black", size = 10) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 7, vjust = 2) +
+  scale_fill_gradient2(low = "#c44536",                        
+                       mid = "#FFFFCC",                       
+                       high = "#4EEB53") +
+    geom_text(data = subset(affect_item_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = SWLS, hjust = 1),
+              color = "black", size = 10, vjust = -0.5) +
+    geom_text(data = subset(affect_item_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = SWLS, hjust = 1),
+              color = "black", size = 10, vjust = -0.5) +
+    geom_text(data = subset(affect_item_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = SWLS, hjust = 1),
+              color = "black", size = 10, vjust = -0.5) + 
+  labs(title = "Positive Affect",x = "prompts", y = "Subscale") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1),labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1),labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,size = 24),
+        axis.text.x = element_text(size = 16, color = "black"),  
+        axis.text.y = element_text(size = 16,color = "black"),
+        axis.title.x = element_text(size = 24),
+        axis.title.y = element_text(size = 24)) 
+  
+  
+
+affect_heat 
+```
+
+
+## Purpose {.tabset}
+
+*Prompts*
+
+> Purpose 1. When you think about your life, what are you striving to accomplish?
+
+> Purpose 2. What kind of plans do you have for the future and how are you working towards them?
+
+> Purpose 3. Do you feel like you have a sense of direction in your life, or do you feel like you're wandering aimlessly?
+
+*Qualtrics Questions*
+
+> Purpose 1 Some people wander aimlessly through life, but I am not one of them
+
+> Purpose 2 I live life one day at a time and don't really think about the future
+
+> Purpose 3 I sometimes feel as if I've done all there is to do in life
+
+### Models {.tabset}
+
+#### Estimates
+
+```{r}
+
+purpose <- df %>%
+  select(starts_with("pre_Purpose_in_Life"))
+
+if (!file.exists("purpose_item_level_content_output.RDS")) {
+ purpose_item <- textTrainLists(
+    x = embeddings$texts[10:12],
+    y = purpose[1:3],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "purpose content words predicting pre item-level responses, N = 181"
+  )
+  
+  
+  # Save the model output to an RDS file
+  saveRDS(purpose_item, "purpose_item_level_content_output.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  purpose_item <- readRDS("purpose_item_level_content_output.RDS")
+}
+
+###tack on RMSE 
+
+purpose_item_predictions <-as.data.frame(purpose_item$predictions[1:9])
+models <- c(colnames(purpose_item$predictions[1:9]))
+
+
+for (i in 1:3) {
+  column_name <- paste0("pre_Purpose_in_Life_", i)
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = purpose,
+    predicted_values = purpose_item_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+purpose_rmse <- results %>%
+  bind_rows() %>%
+  distinct() %>% 
+  filter(grepl("Purpose", Model, ignore.case = TRUE))
+}
+purpose_item_results <- purpose_item$results
+purpose_item_results$RMSE <- purpose_rmse$RMSE
+table(purpose_item_results)
+```
+
+### Heatmap
+
+```{r purpose, fig.height=12, fig.width=12}
+
+purpose_item_results$prompt <- str_extract(purpose_item_results$descriptions, "^[^_]+")
+purpose_item_results$purpose <- str_extract(purpose_item_results$descriptions, "[^_]+$")
+
+# Remove the original "descriptions" column
+purpose_item_results <- purpose_item_results %>% 
+  select(-descriptions)
+
+purpose_item_results$correlation <- as.numeric(purpose_item_results$correlation)
+
+
+purpose_item_results <- purpose_item_results %>% 
+  dplyr:: mutate(prompt = recode(prompt, 
+                         "Q1..purpose" = "1.When you think about your life, what are you striving to accomplish?",
+                         "Q2..purpose" = "2.What kind of plans do you have for the future and how are you working towards them?",
+                         "Q3..purpose" = "3.Do you feel like you have a sense of direction in your life, or do you feel like you're wandering aimlessly?"),) %>% 
+  dplyr:: mutate(purpose = recode(purpose, 
+                       "1" = "Some people wander aimlessly through life, but I am not one of them",
+                       "2" = "I live life one day at a time and don't really think about the future",
+                       "3" = "I sometimes feel as if I've done all there is to do in life"))
+
+
+purpose_heat <- ggplot(purpose_item_results, aes(x = prompt, y = purpose, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) +
+   scale_fill_gradient2(low = "#c44536",                        
+                       mid = "#FFFFCC",                       
+                       high = "#4EEB53") +
+    geom_text(data = subset(purpose_item_results, p_value < 0.05), aes(label = "*", x = prompt, y = purpose, hjust = 1),
+              color = "black", size = 12, vjust = -0.5) +
+    geom_text(data = subset(purpose_item_results, p_value < 0.01), aes(label = "**", x = prompt, y = purpose, hjust = 1),
+              color = "black", size = 12, vjust = -0.5) +
+    geom_text(data = subset(purpose_item_results, p_value < 0.001), aes(label = "***", x = prompt, y = purpose, hjust = 1),
+              color = "black", size = 12, vjust = -0.5)  + 
+  labs(title = "Purpose",x = "prompts", y = "Subscale") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1),labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1),labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,size = 24),
+        axis.text.x = element_text(size = 16, color = "black"),  
+        axis.text.y = element_text(size = 16,color = "black"),
+        axis.title.x = element_text(size = 24),
+        axis.title.y = element_text(size = 24)) 
+  
+  
+purpose_heat
+```
+
+## Relationships {.tabset}
+
+*Prompts*
+
+> Relationships 1. Describe the level of trust between you and your friends.
+
+> Relationships 2. Describe a conversation you had recently with a family member or friends that you enjoyed.
+
+> Relationships 3. Describe a time when you were willing to generously share your time with someone else.
+
+*Qualtrics Questions*
+
+> Relationships 1 Maintaining close relationships has been difficult and frustrating for me
+
+> Relationships 2 People would describe me as a giving person, willing to share my time with others
+
+> Relationships 3 People would describe me as a giving person, willing to share my time with others
+
+### Models {.tabset}
+
+#### Estimates
+
+```{r}
+relationships <- df %>%
+  select(starts_with("pre_Positive_Relations"))
+
+if (!file.exists("relationships_content_item_level_output.RDS")) {
+ relationships_item <- textTrainLists(
+    x = embeddings$texts[13:15],
+    y = relationships[1:3],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "relationships content words predicting pre item-level responses, N = 181"
+  )
+  
+  
+  # Save the model output to an RDS file
+  saveRDS(relationships_item, "relationships_content_item_level_output.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  relationships_item <- readRDS("relationships_content_item_level_output.RDS")
+}
+
+relationship_item_predictions <-as.data.frame(relationships_item$predictions[1:9])
+models <- c(colnames(relationships_item$predictions[1:9]))
+
+
+for (i in 1:3) {
+  column_name <- paste0("pre_Positive_Relations_", i)
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = relationships,
+    predicted_values = relationship_item_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+relations_rmse <- results %>%
+  bind_rows() %>%
+  distinct() %>% 
+  filter(grepl("Relations", Model, ignore.case = TRUE))
+}
+
+
+relationships_results <- relationships_item$results
+relationships_results$RMSE <- relations_rmse$RMSE
+
+table(relationships_results)
+```
+
+
+### Heatmap
+
+```{r relationships, fig.height=12, fig.width=12}
+relationships_results$prompt <- str_extract(relationships_results$descriptions, "^[^_]+")
+relationships_results$relationships <- str_extract(relationships_results$descriptions, "[^_]+$")
+
+# Remove the original "descriptions" column
+relationships_results <- relationships_results %>% 
+  select(-descriptions)
+
+relationships_results$correlation <- as.numeric(relationships_results$correlation)
+
+
+relationships_results <- relationships_results %>% 
+  dplyr:: mutate(prompt = recode(prompt, 
+                         "Q1..relationships" = "1.Describe the level of trust between you and your friends.",
+                         "Q2..relationships" = "2.Describe a conversation you had recently with a family member or friends that you enjoyed.",
+                         "Q3..relationships" = "3.Describe a time you generously share your time with someone else."),) %>% 
+  dplyr:: mutate(relationships = recode(relationships, 
+                       "1" = "Maintaining close relationships has been difficult and frustrating for me",
+                       "2" = "I am willing to share my time with others",
+                       "3" = "People would describe me as a giving person"))
+
+
+relationships_heat <- ggplot(relationships_results, aes(x = prompt, y = relationships, fill = correlation)) +
+  geom_tile(color = "white") +
+ geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) +
+   scale_fill_gradient2(low = "#c44536",                        
+                       mid = "#FFFFCC",                       
+                       high = "#4EEB53") +
+    geom_text(data = subset(relationships_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = relationships, hjust = 1),
+              color = "black", size = 12, vjust = -0.5) +
+    geom_text(data = subset(relationships_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = relationships, hjust = 1),
+              color = "black", size = 12, vjust = -0.5) +
+    geom_text(data = subset(relationships_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = relationships, hjust = 1),
+              color = "black", size = 12, vjust = -0.5)  + 
+  labs(title ="Relationships",x = "prompts", y = "Subscale") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1),labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1),labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,size = 24),
+        axis.text.x = element_text(size = 16, color = "black"),  
+        axis.text.y = element_text(size = 16,color = "black"),
+        axis.title.x = element_text(size = 24),
+        axis.title.y = element_text(size = 24)) 
+  
+  
+relationships_heat
+
+```
+
+## Self-Acceptance {.tabset}
+
+*Prompts*
+
+> Self-Acceptance 1. What aspect or aspects of your personality do you like?
+
+> Self-Acceptance 2. When you look back at the story of your life, what are you pleased about?
+
+> Self-Acceptance 3. What life achievements are you proud of?
+
+*Qualtrics Questions*
+
+> Self-Acceptance 1 I like most parts of my personality
+
+> Self-Acceptance 2 When I look at the story of my life, I am pleased with how things have turned out so far
+
+> Self-Acceptance 3 In many ways I feel disappointed about my achievements in life
+
+### Models {.tabset}
+
+
+#### Estimates
+
+```{r}
+
+acceptance <- df %>%
+  select(starts_with("pre_Self-Acceptance"))
+
+if (!file.exists("acceptance_content_item_output.RDS")) {
+ acceptance_item <- textTrainLists(
+    x = embeddings$texts[16:18],
+    y = acceptance[1:3],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "acceptance content words predicting item-level and WB, N = 181"
+  )
+  
+  
+  # Save the model output to an RDS file
+  saveRDS(acceptance_item, "acceptance_content_item_output.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  acceptance_item <- readRDS("acceptance_content_item_output.RDS")
+}
+
+acceptance_item_predictions <-as.data.frame(acceptance_item$predictions[1:9])
+models <- c(colnames(acceptance_item$predictions[1:9]))
+
+
+for (i in 1:3) {
+  column_name <- paste0("pre_Self-Acceptance_", i)
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = acceptance,
+    predicted_values = acceptance_item_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+acceptance_rmse <- results %>%
+  bind_rows() %>%
+  distinct() %>% 
+  filter(grepl("Self-Acceptance", Model, ignore.case = TRUE))
+}
+acceptance_results <- acceptance_item$results
+acceptance_results$RMSE <- acceptance_rmse$RMSE
+table(acceptance_results)
+```
+
+### Heatmap
+
+```{r acceptance, fig.height=12, fig.width=12}
+acceptance_results$prompt <- str_extract(acceptance_results$descriptions, "^[^_]+")
+acceptance_results$acceptance <- str_extract(acceptance_results$descriptions, "[^_]+$")
+
+# Remove the original "descriptions" column
+acceptance_results <- acceptance_results %>% 
+  select(-descriptions)
+
+acceptance_results$correlation <- as.numeric(acceptance_results$correlation)
+
+acceptance_results <- acceptance_results %>% 
+  dplyr:: mutate(prompt = recode(prompt, 
+                         "Q1..self" = "1.What aspect or aspects of your personality do you like?",
+                         "Q2..self" = "2.When you look back at the story of your life, what are you pleased about?",
+                         "Q3..self" = "3.What life achievements are you proud of?"),) %>% 
+  dplyr:: mutate(acceptance = recode(acceptance, 
+                       "1" = "I like most parts of my personality",
+                       "2" = "When I look at the story of my life, I am pleased with how things have turned out so far",
+                       "3" = "In many ways I feel disappointed about my achievements in life"))
+
+
+acceptance_heat <- 
+  ggplot(acceptance_results, aes(x = prompt, y = acceptance, fill = correlation)) +
+  geom_tile(color = "white") +
+ geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) +
+ scale_fill_gradient2(low = "#c44536",                        
+                       mid = "#FFFFCC",                       
+                       high = "#4EEB53") +
+    geom_text(data = subset(acceptance_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = acceptance, hjust = 1),
+              color = "black", size = 12, vjust = -0.5) +
+    geom_text(data = subset(acceptance_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = acceptance, hjust = 1),
+              color = "black", size = 12, vjust = -0.5) +
+    geom_text(data = subset(acceptance_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = acceptance, hjust = 1),
+              color = "black", size = 12, vjust = -0.5)  + 
+  plot_aes + 
+  ggtitle("Self-Acceptance") +  
+  labs(x = "prompts", y = "Subscale")  +
+  scale_x_discrete(guide = guide_axis(n.dodge = 1),labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1),labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,size = 24),
+        axis.text.x = element_text(size = 16, color = "black"),  
+        axis.text.y = element_text(size = 16,color = "black"),
+        axis.title.x = element_text(size = 24),
+        axis.title.y = element_text(size = 24)) 
+  
+
+
+
+acceptance_heat
+```
+
+## Personal Growth {.tabset}
+
+*Prompts*
+
+> Personal Growth 1. What experiences have you had that challenged how you think about yourself and the world?
+
+> Personal Growth 2. How have you developed as a person over time?
+
+> Personal Growth 3. Describe a situation that prompted you to change your old familiar ways of doing things.
+
+*Qualtrics Questions*
+
+> Personal Growth 1 For me, life has been a continuous process of learning, changing, and growth
+
+> Personal Growth 2 I think it is important to have new experiences that challenge how I think about myself and the world
+
+> Personal Growth 3 I gave up trying to make big improvements or changes in my life a long time ago
+
+### Models {.tabset}
+
+#### Estimates
+
+```{r}
+growth <- df %>%
+  select(starts_with("pre_Personal_Growth"))
+
+
+if (!file.exists("growth_content_item_output.RDS")) {
+ growth_item <- textTrainLists(
+    x = embeddings$texts[4:6],
+    y = growth[1:3],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "personal growth content words predicting item-level and WB, N = 181"
+  )
+  
+  
+  # Save the model output to an RDS file
+  saveRDS(growth_item, "growth_content_item_output.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  growth_item <- readRDS("growth_content_item_output.RDS")
+}
+
+
+growth_item_predictions <-as.data.frame(growth_item$predictions[1:9])
+models <- c(colnames(growth_item$predictions[1:9]))
+
+for (i in 1:3) {
+  column_name <- paste0("pre_Personal_Growth_", i)
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = growth,
+    predicted_values = growth_item_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+growth_rmse <- results %>%
+  bind_rows() %>%
+  distinct() %>% 
+  filter(grepl("Personal_Growth", Model, ignore.case = TRUE))
+}
+
+growth_results <- growth_item$results
+growth_results$RMSE <- growth_rmse$RMSE
+table(growth_results)
+```
+
+### Heatmap
+
+```{r growth, fig.height=12, fig.width=12}
+
+growth_results$prompt <- str_extract(growth_results$descriptions, "^[^_]+")
+growth_results$growth <- str_extract(growth_results$descriptions, "[^_]+$")
+
+# Remove the original "descriptions" column
+growth_results <- growth_results %>% 
+  select(-descriptions)
+
+growth_results$correlation <- as.numeric(growth_results$correlation)
+
+growth_results <- growth_results %>% 
+  dplyr:: mutate(prompt = recode(prompt, 
+                         "Q1..personal" = "1.What experiences have you had that challenged how you think about yourself and the world?",
+                         "Q2..personal" = "2.How have you developed as a person over time?",
+                         "Q3..personal" = "3.What life achievements are you proud of?"),) %>% 
+  dplyr:: mutate(growth = recode(growth, 
+                       "1" = "For me, life has been a continuous process of learning, changing, and growth",
+                       "2" = "I think it is important to have new experiences that challenge how I think about myself and the world",
+                       "3" = "I gave up trying to make big improvements or changes in my life a long time ago"))
+
+
+
+growth_heat <- 
+ggplot(growth_results, aes(x = prompt, y = growth, fill = correlation)) +
+  geom_tile(color = "white") +
+ geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) +
+ scale_fill_gradient2(low = "#c44536",                        
+                       mid = "#FFFFCC",                       
+                       high = "#4EEB53") +
+    geom_text(data = subset(growth_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = growth, hjust = 1),
+              color = "black", size = 12, vjust = -0.5) +
+    geom_text(data = subset(growth_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = growth, hjust = 1),
+              color = "black", size = 12, vjust = -0.5) +
+    geom_text(data = subset(growth_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = growth, hjust = 1),
+              color = "black", size = 12, vjust = -0.5) +
+  labs(title = "Personal Growth",x = "prompts", y = "Subscale") +  
+  scale_x_discrete(guide = guide_axis(n.dodge = 1),labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1),labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5,size = 24),
+        axis.text.x = element_text(size = 16, color = "black"),  
+        axis.text.y = element_text(size = 16,color = "black"),
+        axis.title.x = element_text(size = 24),
+        axis.title.y = element_text(size = 24)) 
+  
+  
+
+growth_heat
+```
+
+## Autonomy {.tabset}
+
+*Prompts*
+
+> Autonomy 1. In what ways do you judge yourself by what you think is important and/or what others think is important?
+
+> Autonomy 2. In what ways do you worry about what other people think of you? NOT FEATURED
+
+> Autonomy 3. In what ways are your decisions influenced (or not) by what others are doing?
+
+> Autonomy 4. Describe a time when you chose to voice (or not voice) your own opinion on a controversial matter.
+
+*Qualtrics Questions*
+
+> Autonomy 1 I tend to be influenced by people with strong opinions
+
+> Autonomy 2 I have confidence in my own opinions, even if they are different from the way most other people think
+
+> Autonomy 3 I judge myself by what I think is important, not by the values of what others think is important
+
+### Models {.tabset}
+
+#### Estimates
+
+```{r}
+
+autonomy <- df %>%
+  select(starts_with("pre_Autonomy"))
+
+
+if (!file.exists("autonomy_content_item_output.RDS")) {
+ autonomy_item <- textTrainLists(
+    x = embeddings$texts[1:3],
+    y = autonomy[1:3],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "autonomy predicting item-level and WB, N = 181"
+  )
+  
+  
+  # Save the model output to an RDS file
+  saveRDS(autonomy_item, "autonomy_content_item_output.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  autonomy_item <- readRDS("autonomy_content_item_output.RDS")
+}
+
+
+autonomy_item_predictions <-as.data.frame(autonomy_item$predictions[1:9])
+models <- c(colnames(autonomy_item$predictions[1:9]))
+
+
+for (i in 1:3) {
+  column_name <- paste0("pre_Autonomy_", i)
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = autonomy,
+    predicted_values = autonomy_item_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+autonomy_rmse <- results %>%
+  bind_rows() %>%
+  distinct() %>% 
+  filter(grepl("autonomy", Model, ignore.case = TRUE))
+}
+
+autonomy_results <- autonomy_item$results
+autonomy_results$RMSE <- autonomy_rmse$RMSE
+table(autonomy_results)
+```
+
+### Heatmap
+
+```{r autonomy, fig.height=12, fig.width=12}
+autonomy_results$prompt <- str_extract(autonomy_results$descriptions, "^[^_]+")
+autonomy_results$autonomy <- str_extract(autonomy_results$descriptions, "[^_]+$")
+
+# Remove the original "descriptions" column
+autonomy_results <- autonomy_results %>% 
+  select(-descriptions)
+
+autonomy_results$correlation <- as.numeric(autonomy_results$correlation)
+
+
+autonomy_results <- autonomy_results %>% 
+  dplyr:: mutate(prompt = recode(prompt, 
+                         "Q1..autonomy" = "1.In what ways do you judge yourself
+                         by what you think is important and/or what others think is important?",
+                         "Q3..autonomy" = "3.In what ways are your decisions influenced (or not) by what others are doing?",
+                         "Q4..autonomy" = "4.Describe a time when you chose to voice (or not voice) your own opinion on a controversial matter."),) %>% 
+  dplyr:: mutate(autonomy = recode(autonomy, 
+                       "1" = "I tend to be influenced by people with strong opinions",
+                       "2" = "I have confidence in my own opinions, even if they are different from the way most other people think",
+                       "3" = "I judge myself by what I think is important, not by the values of what others think is important"))
+
+autonomy_heat <- 
+  ggplot(autonomy_results, aes(x = prompt, y = autonomy, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) + # Add RMSE values
+  scale_fill_gradient2(low = "#c44536",                        
+                       mid = "#FFFFCC",                       
+                       high = "#4EEB53") +
+  geom_text(data = subset(autonomy_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = autonomy, hjust = 1),
+            color = "black", size = 12, vjust = -0.5) +
+  geom_text(data = subset(autonomy_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = autonomy, hjust = 1),
+            color = "black", size = 12, vjust = -0.5) +
+  geom_text(data = subset(autonomy_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = autonomy, hjust = 1),
+            color = "black", size = 12, vjust = -0.5) + 
+  labs(title = "Autonomy", x = "prompts", y = "Subscale") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(plot.title = element_text(hjust = 0.5, vjust = 1.5, size = 24),
+        axis.text.x = element_text(size = 16, color = "black"),  
+        axis.text.y = element_text(size = 16, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 24),
+        axis.title.y = element_text(size = 24))
+
+  
+
+autonomy_heat
+```
+
+
+## All heat Maps
+
+```{r all-heat-maps, fig.height=20, fig.width=28}
+
+item_level <- ggarrange(acceptance_heat,autonomy_heat, affect_heat ,purpose_heat,growth_heat,relationships_heat, ncol = 2,nrow = 3, common.legend = F)
+
+item_level +
+  ggtitle("Content Word Item-Level Predictions") +
+  plot_aes  +  
+  theme(
+    plot.title = element_text(size = 48, hjust = 0.5, vjust = 1.5)
+  ) 
+```
