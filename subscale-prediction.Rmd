@@ -163,9 +163,9 @@ process_results <- function(result_list) {
 # load data
 
 ```{r load-data}
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/surveys_scored/LP2_transcriptions_behavioral.csv")
+df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_text/surveys_scored/LP2_transcriptions_behavioral.csv")
 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/embeddings/all_embeddings.rds")
+embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_text/embeddings/study_1/all_embeddings.rds")
 ```
 
 # Subscale Predicition {.tabset}
@@ -174,9 +174,9 @@ embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/
 
 ```{r}
 # load in all the RDS objects
-if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/autonomy/autonomy_subscale_df.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/autonomy/autonomy_subscale_df.RDS")) {
 
-autonomy_path <- "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/autonomy"
+autonomy_path <- "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/autonomy"
 
 
 # List all files in the directory with the .RDS extension
@@ -232,12 +232,11 @@ autonomy_results<-
 
 
 # Save the model output to an RDS file
-  saveRDS(autonomy_results, "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/autonomy/autonomy_subscale_df.RDS")
+  saveRDS(autonomy_results, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/autonomy/autonomy_subscale_df.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  autonomy_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/autonomy/autonomy_subscale_df.RDS")
+  autonomy_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/autonomy/autonomy_subscale_df.RDS")
 }
-
 
 ```
 
@@ -275,7 +274,7 @@ autonomy_heat
 ## Acceptance {.tabset}
 
 ```{r}
-if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/acceptance/acceptance_subscale_df.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/acceptance/acceptance_subscale_df.RDS")) {
 
 acceptance_path <- "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/acceptance"
 
@@ -328,10 +327,10 @@ accept_results<- accept_results %>%
     outcome = ifelse(grepl("_sub", model), gsub(".*accept_", "", gsub("_sub", "", model)), NA))
 
 # Save the model output to an RDS file
-  saveRDS(accept_results, "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/acceptance/acceptance_subscale_df.RDS")
+  saveRDS(accept_results, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/acceptance/acceptance_subscale_df.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  accept_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/acceptance/acceptance_subscale_df.RDS")
+  accept_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/acceptance/acceptance_subscale_df.RDS")
 }
 
 ```
@@ -369,7 +368,7 @@ accept_heat
 ### Models {.tabset}
 
 ```{r}
-if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/affect/affect_results.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/affect/affect_results.RDS")) {
 
 
 
@@ -428,10 +427,10 @@ affect_results<- affect_results %>%
 
 
 # Save the model output to an RDS file
-  saveRDS(affect_results, "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/affect/affect_results.RDS")
+  saveRDS(affect_results, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/affect/affect_results.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  affect_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/affect/affect_results.RDS")
+  affect_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/affect/affect_results.RDS")
 }
 ```
 
@@ -468,9 +467,9 @@ affect_heat
 ### Models {.tabset}
 
 ```{r}
-if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/growth/growth_results.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/growthgrowth_results.RDS")) {
 
-growth_path <- "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/growth"
+growth_path <- "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/growth"
 
 # List all files in the directory with the .RDS extension
 rds_files <- list.files(growth_path, pattern = "\\.RDS$", full.names = TRUE)
@@ -524,10 +523,10 @@ growth_results<- growth_results %>%
 
 
 # Save the model output to an RDS file
-  saveRDS(growth_results, "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/growth/growth_results.RDS")
+  saveRDS(growth_results, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/growthgrowth_results.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  growth_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/growth/growth_results.RDS")
+  growth_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/growth/growth_results.RDS")
 }
 ```
 
@@ -561,9 +560,9 @@ growth_heat
 ## Purpose {.tabset}
 
 ```{r}
-if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/purpose/purpose_results.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/purpose/purpose_results.RDS")) {
 
-purpose_path <- "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/purpose"
+purpose_path <- "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/purpose/"
 
 # List all files in the directory with the .RDS extension
 rds_files <- list.files(purpose_path, pattern = "\\.RDS$", full.names = TRUE)
@@ -617,10 +616,10 @@ purpose_results<- purpose_results %>%
 
 
 # Save the model output to an RDS file
-  saveRDS(purpose_results, "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/purpose/purpose_results.RDS")
+  saveRDS(purpose_results, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/purpose/purpose_results.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  purpose_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/purpose/purpose_results.RDS")
+  purpose_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/purpose/purpose_results.RDS")
 }
 ```
 
@@ -658,9 +657,9 @@ purpose_heat
 ### Models {.tabset}
 
 ```{r}
-if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/relations/relations_results.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/relations/relations_results.RDS")) {
 
-relations_path <- "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/relations"
+relations_path <- "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/relations"
 
 # List all files in the directory with the .RDS extension
 rds_files <- list.files(relations_path, pattern = "\\.RDS$", full.names = TRUE)
@@ -714,10 +713,10 @@ relations_results<- relations_results %>%
 
 
 # Save the model output to an RDS file
-  saveRDS(relations_results, "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/relations/relations_results.RDS")
+  saveRDS(relations_results, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/relations/relations_results.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  relations_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/relations/relations_results.RDS")
+  relations_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/relations/relations_results.RDS")
 }
 ```
 
@@ -745,13 +744,25 @@ relations_heat <- ggplot(relations_results, aes(x = prompt, y = outcome, fill = 
               color = "black", size = 4, vjust = -0.5) + plot_aes
 
 relations_heat
+
+
 ```
 
 # All subscales Heatmap
 
 ```{r all-subscales-heat}
+
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/all_subscales.RDS")) {
+  
+  
 combined_df <- rbind(autonomy_results,accept_results, affect_results, growth_results, purpose_results, relations_results)
 
+
+  saveRDS(combined_df,"/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/all_subscales.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  combined_df <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/all_subscales.RDS")
+}
 
 all_heat <- ggplot(combined_df, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
@@ -772,7 +783,6 @@ all_heat <- ggplot(combined_df, aes(x = prompt, y = outcome, fill = r)) +
   ) 
 
 all_heat
-
 
 ```
 

@@ -1,0 +1,119 @@
+---
+title: "LP2 Subscale-level Visualization"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, error = FALSE,  cache = FALSE,fig.path = "fig/Effect_comparison")
+options(scipen=999)
+```
+
+```{r prep}
+library(tidyverse)
+
+main_results = readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/all_subscales.RDS")
+main_results$dataset = "all words"
+
+
+content_results = readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/subscale-models/models/content_all.rds")
+content_results$dataset = "content words"
+
+###bind datasets 
+
+all_effects = rbind(main_results,content_results)
+
+### subset 
+
+plot_data = all_effects %>% 
+  select(prompt,outcome,r,p.value,conf.int_low,conf.int_high,RMSE,dataset)
+
+palette = c("#772e25","#c44536", "#ee9b00","#005f73","#001219", "#0a9396", "#94d2bd", "#e9d8a6", "#ca6702", "#bb3e03", "#9b2226","#6195C6", "#ADA7C9")
+plot_aes = theme_minimal() +
+  theme(legend.position = "top",
+        legend.text = element_text(size = 8),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = 20))  # Center and increase title size)
+
+```
+
+# Plot the Data
+
+
+```{r comparing-effects, fig.height=8, fig.width=10}
+### subset 
+
+plot_data = all_effects %>% 
+  select(prompt,outcome,r,p.value,conf.int_low,conf.int_high,RMSE,dataset)
+
+palette = c("#772e25","#c44536", "#ee9b00","#005f73","#001219", "#0a9396", "#94d2bd", "#e9d8a6", "#ca6702", "#bb3e03", "#9b2226","#6195C6", "#ADA7C9")
+plot_aes = theme_minimal() +
+  theme(legend.position = "top",
+        legend.text = element_text(size = 8),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = 20))  # Center and increase title size)
+
+
+ggplot(plot_data, aes(x = r, y = prompt, xmin = conf.int_low, xmax = conf.int_high, color = outcome, alpha = p.value < 0.05)) +
+  geom_pointrange(position = position_dodge(width = 0.6)) +
+  scale_color_manual(values = palette) +
+  scale_alpha_manual(values = c(0.2, 1), guide = FALSE) +  # Set alpha values
+  labs(title = "Self-Reflection Prompts about Well-being Predicting Subscale Responses",
+       x = "Pearson's Product Moment Correlation ",
+       y = "Prompt",
+       color = "Psychological Subscale") +
+  plot_aes + 
+  theme(axis.text.x = element_text(hjust = 1, size = 12)) +
+  scale_x_continuous(limits = c(-1, 1)) + 
+  facet_wrap(~dataset) +   
+  geom_vline(xintercept = 0, linetype = "dashed")
+
+```
+
+# Main results 
+
+```{r main-results, fig.height=8, fig.width=10}
+plot_data = main_results %>% 
+  select(prompt,outcome,r,p.value,conf.int_low,conf.int_high,RMSE)
+
+palette = c("#772e25","#c44536", "#ee9b00","#005f73","#001219", "#0a9396", "#94d2bd", "#e9d8a6", "#ca6702", "#bb3e03", "#9b2226","#6195C6", "#ADA7C9")
+plot_aes = theme_minimal() +
+  theme(legend.position = "top",
+        legend.text = element_text(size = 8),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = 20))  # Center and increase title size)
+
+
+ggplot(plot_data, aes(x = r, y = prompt, xmin = conf.int_low, xmax = conf.int_high, color = outcome, alpha = p.value < 0.05)) +
+  geom_pointrange(position = position_dodge(width = 0.6)) +
+  scale_color_manual(values = palette) +
+  scale_alpha_manual(values = c(0.2, 1), guide = FALSE) +  # Set alpha values
+  labs(title = "Self-Reflection Prompts about Well-being Predicting Subscale Responses",
+       x = "Pearson's Product Moment Correlation ",
+       y = "Prompt",
+       color = "Psychological Subscale") +
+  plot_aes + 
+  theme(axis.text.x = element_text(hjust = 1, size = 12)) +
+  scale_x_continuous(limits = c(-1, 1)) + 
+  geom_vline(xintercept = 0, linetype = "dashed")
+```
+

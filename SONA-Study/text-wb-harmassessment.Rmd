@@ -1,0 +1,117 @@
+---
+title: "Harm Assessment"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "Harm_Assessment/Harm_")
+options(scipen=999)
+```
+
+
+```{r load packages and installize conda environment, include=FALSE}
+if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
+library(pacman)
+
+#setwd("~/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/item_level_analyses")
+
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,NatParksPalettes,install = T) 
+```
+
+
+```{r}
+plot_aes = theme_minimal() +
+  theme(legend.position = "none",
+        text = element_text(family = "Futura Medium"),
+        axis.ticks.y = element_blank())
+```
+
+```{r}
+data = readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/data/harm-assessment/harm_assessment.RDS")
+```
+
+# Harm Assessment for SONA Project {.tabset}
+
+## Well-being Assessments 
+
+```{r}
+wb_assessments = data %>% 
+  select(1,10:17) %>% 
+  distinct() %>% 
+  gather("scale","score",-pID)
+  
+
+ggplot(wb_assessments, aes(x=pID, y=score, color = pID,fill = pID)) + 
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  facet_wrap(~scale) + plot_aes
+```
+
+
+## Text Responses 
+
+```{r}
+data %>%
+  select(pID,prompt,text) %>% 
+  distinct() %>% 
+  reactable(striped = TRUE,
+            filterable = TRUE,
+            resizable = TRUE,
+            pageSizeOptions = 25)
+```
+
+
+
+
+## User-experience {.tabset}
+
+### Overall Experience
+
+```{r}
+data %>%
+  select(pID,OE_experience) %>% 
+  distinct() %>% 
+  reactable(striped = TRUE,
+            filterable = TRUE,
+            resizable = TRUE,
+            pageSizeOptions = 25)
+```
+
+### Interest / Enjoyment 
+
+```{r}
+data %>% 
+  select(pID,OE_interest_enjoy) %>% 
+  distinct() %>% 
+  reactable(striped = TRUE,
+            filterable = TRUE,
+            resizable = TRUE,
+             pageSizeOptions = 25)
+```
+
+### Usefulness 
+
+```{r}
+data %>% 
+  select(pID,OE_usefulness) %>% 
+  distinct() %>% 
+  reactable(striped = TRUE,
+            filterable = TRUE,
+            resizable = TRUE,
+             pageSizeOptions = 25)
+```

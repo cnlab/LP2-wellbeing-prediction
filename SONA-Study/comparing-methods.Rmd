@@ -1,0 +1,1438 @@
+---
+title: "Comparing Methods"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "Comparing_Methods/Methods_")
+options(scipen=999)
+```
+
+
+```{r load packages and installize conda environment, include=FALSE}
+if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
+library(pacman)
+
+#setwd("~/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/item_level_analyses")
+
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,install = T) 
+```
+
+
+```{r}
+plot_aes = theme_minimal() +
+  theme(legend.position = "none",
+        text = element_text(family = "Futura Medium"),
+        axis.ticks.y = element_blank())
+```
+
+```{r}
+liwc = read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/data_text/LIWC_wellbeing-prediction-text-long.csv")
+
+### compute psychological distance vars 
+
+liwc = liwc %>% 
+  filter(WC > 15) %>% 
+    mutate(temporal_distance = (focuspast + focusfuture) / (focuspast + focuspresent + focusfuture), #calculated at text level
+social_distance = (you + we + shehe + they) / (you + we + shehe + they + i), # calculated at text level # averaged at the text level
+psych_distance =(temporal_distance + social_distance)/2)
+
+```
+
+# Comparing Different Method Types (Audio v. Text) {.tabset}
+
+```{r}
+library(rstatix)
+library(effsize)
+library(NatParksPalettes)
+
+```
+
+## Word Count 
+
+```{r}
+stat.test <- liwc %>%
+  t_test(WC ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$WC,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = WC, fill = type)) + 
+  labs(y = "Word Count") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(WC), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+
+```
+
+> <b> Participants spoke more using the audio recording method than the written method </b>
+
+## Analytic Thinking 
+
+```{r}
+stat.test <- liwc %>%
+  t_test(Analytic ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$Analytic,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = Analytic, fill = type)) + 
+  labs(y = "Analytic") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(Analytic), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+
+```
+
+> <b> Participants had slightly more structured, formal thought in engaging with the Text method than the audio method. That is, the audio method represented a more dynamic thinking style </b>
+
+## Big Words (words >= 7 letters)
+
+```{r}
+stat.test <- liwc %>%
+  t_test(BigWords ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$BigWords,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = BigWords, fill = type)) + 
+  labs(y = "BigWords") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(BigWords), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+
+```
+
+> <b> Participants had substantially more complex language when writing their responses to the the prompts than speaking into the audio recording </b>
+
+## Dictionary Words (Dic; number of words captured by LIWC)
+
+```{r}
+stat.test <- liwc %>%
+  t_test(Dic ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$Dic,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = Dic, fill = type)) + 
+  labs(y = "Dic") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(Dic), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+
+```
+
+> <b> LIWC was largely able to capture the language that people used across both methods </b>
+
+## Pronouns {.tabset}
+
+### First Person singular
+
+```{r}
+stat.test <- liwc %>%
+  t_test(i ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$i,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = i, fill = type)) + 
+  labs(y = "i") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(i), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Participants' language for the written responses were from more of a personal point of view and indicate they engaged with more introspection than with the audio method</b>
+
+### First person plural
+
+```{r}
+stat.test <- liwc %>%
+  t_test(we ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$we,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = we, fill = type)) + 
+  labs(y = "we") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(we), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Participants' language for the audio responses were from more of a collective point of view than written responses </b>
+
+### Second Person 
+
+```{r}
+stat.test <- liwc %>%
+  t_test(shehe ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$shehe,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = shehe, fill = type)) + 
+  labs(y = "shehe") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(shehe), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Participants' language for the audio responses were from distanced point of view </b>
+
+
+### Third Person Plural 
+
+```{r}
+stat.test <- liwc %>%
+  t_test(they ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$they,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = they, fill = type)) + 
+  labs(y = "they") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(they), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Participants' language for the audio responses were from distanced point of view </b>
+
+## Psychological Processes {.tabset}
+
+### All or None
+
+```{r}
+stat.test <- liwc %>%
+  t_test(allnone ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$allnone,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = allnone, fill = type)) + 
+  labs(y = "allnone") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(allnone), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> No differences across methods for absolutist language
+
+### Cognitive Processing
+
+```{r}
+stat.test <- liwc %>%
+  t_test(cogproc ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$cogproc,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = cogproc, fill = type)) + 
+  labs(y = "cogproc") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(cogproc), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> No differences in active problem-solving </b>
+
+### Insight (dictionary for self-reflection)
+
+```{r}
+stat.test <- liwc %>%
+  t_test(insight ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$insight,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = insight, fill = type)) + 
+  labs(y = "insight") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(insight), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> No differences in self-insight </b>
+
+## Affect {.tabset}
+
+### Positive Emotion 
+
+```{r}
+stat.test <- liwc %>%
+  t_test(tone_pos ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$tone_pos,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = tone_pos, fill = type)) + 
+  labs(y = "tone_pos") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(tone_pos), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Text responses possessed slightly higher levels of positive sentiment than audio recordings </b>
+
+### Negative Emotion
+
+```{r}
+stat.test <- liwc %>%
+  t_test(tone_neg ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$tone_neg,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = tone_neg, fill = type)) + 
+  labs(y = "tone_neg") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(tone_neg), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Text responses possessed slightly higher levels of negative sentiment than audio recordings </b>
+
+## Temporal Focus {.tabset}
+
+### Focus Past 
+
+```{r}
+stat.test <- liwc %>%
+  t_test(focuspast ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$focuspast,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = focuspast, fill = type)) + 
+  labs(y = "focuspast") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(focuspast), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> No meaningful differences across methods for past focused orientation </b>
+
+### Focus Present 
+```{r}
+stat.test <- liwc %>%
+  t_test(focuspresent ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$focuspresent,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = focuspresent, fill = type)) + 
+  labs(y = "focuspresent") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(focuspresent), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Audio recordings were more present focused than Text responses </b>
+
+### Focus Future 
+```{r}
+stat.test <- liwc %>%
+  t_test(focusfuture ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$focusfuture,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = focusfuture, fill = type)) + 
+  labs(y = "focusfuture") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(focusfuture), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> No difference in future focused language </b>
+
+## Distancing {.tabset} 
+
+### Temporal Distance
+```{r}
+stat.test <- liwc %>%
+  t_test(temporal_distance ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$temporal_distance,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = temporal_distance, fill = type)) + 
+  labs(y = "temporal_distance") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(temporal_distance), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> No difference in temporally sitanced language </b>
+
+### Social Distance
+```{r}
+stat.test <- liwc %>%
+  t_test(social_distance ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$social_distance,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = social_distance, fill = type)) + 
+  labs(y = "social_distance") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(social_distance), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Audio recordings were more socially distanced than text responses </b>
+
+### Psychological Distance
+```{r}
+stat.test <- liwc %>%
+  t_test(psych_distance ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$psych_distance,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = psych_distance, fill = type)) + 
+  labs(y = "psych_distance") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(psych_distance), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Audio recordings were more psychologicall distanced than text responses </b>
+
+## Nonfluencies
+```{r}
+stat.test <- liwc %>%
+  t_test(nonflu ~ type) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$nonflu,liwc$type)
+
+
+ggplot(liwc, aes(x = type, y = nonflu, fill = type)) + 
+  labs(y = "nonflu") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Acadia", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Acadia", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(nonflu), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Audio recordings had more 'junk' in their responses </b>
+
+# Looking Across Prompt Types {.tabset}
+
+## Word Count 
+
+```{r}
+stat.test <- liwc %>%
+  t_test(WC ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$WC,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = WC, fill = prompt)) + 
+  labs(y = "Word Count") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(WC), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+
+```
+
+> <b> No difference across prompts in engagement </b>
+
+## Analytic Thinking 
+
+```{r}
+stat.test <- liwc %>%
+  t_test(Analytic ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$Analytic,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = Analytic, fill = prompt)) + 
+  labs(y = "Analytic") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(Analytic), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+
+```
+
+> <b> No difference across prompts in formal, structured thought </b>
+
+## Big Words (words >= 7 letters)
+
+```{r}
+stat.test <- liwc %>%
+  t_test(BigWords ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$BigWords,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = BigWords, fill = prompt)) + 
+  labs(y = "BigWords") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(BigWords), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+
+```
+
+> <b> No difference across prompts in complex language </b>
+
+## Dictionary Words (Dic; number of words captured by LIWC)
+
+```{r}
+stat.test <- liwc %>%
+  t_test(Dic ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$Dic,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = Dic, fill = prompt)) + 
+  labs(y = "Dic") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(Dic), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+
+```
+
+> <b> LIWC captured slightly more words for the SWLS prompts than the Autonomy Prompts </b>
+
+## Pronouns {.tabset}
+
+### First Person singular
+
+```{r}
+stat.test <- liwc %>%
+  t_test(i ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$i,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = i, fill = prompt)) + 
+  labs(y = "i") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(i), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Responses to SWLS prompts conveyed a greater degree of introspection and internal processing </b>
+
+### First person plural
+
+```{r}
+stat.test <- liwc %>%
+  t_test(we ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$we,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = we, fill = prompt)) + 
+  labs(y = "we") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(we), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Responses to SWLS prompts conveyed a greater degree of collective focus</b>
+
+### Second Person 
+
+```{r}
+stat.test <- liwc %>%
+  t_test(shehe ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$shehe,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = shehe, fill = prompt)) + 
+  labs(y = "shehe") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(shehe), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> No differences across second person references</b>
+
+### Third Person Plural 
+
+```{r}
+stat.test <- liwc %>%
+  t_test(they ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$they,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = they, fill = prompt)) + 
+  labs(y = "they") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(they), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Responses to autonomy prompts were more 'other' focused than SWLS responses</b>
+
+## Psychological Processes {.tabset}
+
+### All or None
+
+```{r}
+stat.test <- liwc %>%
+  t_test(allnone ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$allnone,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = allnone, fill = prompt)) + 
+  labs(y = "allnone") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(allnone), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Responses to SWLS prompts contained more absolute language </b>
+
+### Cognitive Processing
+
+```{r}
+stat.test <- liwc %>%
+  t_test(cogproc ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$cogproc,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = cogproc, fill = prompt)) + 
+  labs(y = "cogproc") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(cogproc), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Responses to Autonomy prompts conveyed a more dynamic type of thinking style </b>
+
+### Insight (dictionary for self-reflection)
+
+```{r}
+stat.test <- liwc %>%
+  t_test(insight ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$insight,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = insight, fill = prompt)) + 
+  labs(y = "insight") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(insight), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Responses to Autonomy prompts conveyed a more interospective kind of thinking style akin to self-reflection </b>
+
+## Affect {.tabset}
+
+### Positive Emotion 
+
+```{r}
+stat.test <- liwc %>%
+  t_test(tone_pos ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$tone_pos,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = tone_pos, fill = prompt)) + 
+  labs(y = "tone_pos") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(tone_pos), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Responses to SWLS prompts conveyed positive sentiment</b>
+
+### Negative Emotion
+
+```{r}
+stat.test <- liwc %>%
+  t_test(tone_neg ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$tone_neg,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = tone_neg, fill = prompt)) + 
+  labs(y = "tone_neg") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(tone_neg), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Responses to SWLS prompts had more negative sentiment</b>
+
+## Temporal Focus {.tabset}
+
+### Focus Past 
+
+```{r}
+stat.test <- liwc %>%
+  t_test(focuspast ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$focuspast,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = focuspast, fill = prompt)) + 
+  labs(y = "focuspast") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(focuspast), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Responses to SWLS prompts were more past focused </b>
+
+### Focus Present 
+```{r}
+stat.test <- liwc %>%
+  t_test(focuspresent ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$focuspresent,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = focuspresent, fill = prompt)) + 
+  labs(y = "focuspresent") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(focuspresent), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Responses to SWLS prompts were more present focused </b>
+
+### Focus Future 
+```{r}
+stat.test <- liwc %>%
+  t_test(focusfuture ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$focusfuture,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = focusfuture, fill = prompt)) + 
+  labs(y = "focusfuture") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(focusfuture), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Responses to Autonomy prompts were more future oriented </b>
+
+## Distancing {.tabset} 
+
+### Temporal Distance
+```{r}
+stat.test <- liwc %>%
+  t_test(temporal_distance ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$temporal_distance,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = temporal_distance, fill = prompt)) + 
+  labs(y = "temporal_distance") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(temporal_distance), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+> <b> No difference across prompt types </b>
+
+### Social Distance
+```{r}
+stat.test <- liwc %>%
+  t_test(social_distance ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$social_distance,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = social_distance, fill = prompt)) + 
+  labs(y = "social_distance") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(social_distance), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Reponses to autonomy prompts possessed  more social distanced language </b>
+
+
+### Psychological Distance
+```{r}
+stat.test <- liwc %>%
+  t_test(psych_distance ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$psych_distance,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = psych_distance, fill = prompt)) + 
+  labs(y = "psych_distance") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(psych_distance), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Reponses to autonomy prompts possessed more psychologically distanced language </b>
+
+
+
+## Nonfluencies
+```{r}
+stat.test <- liwc %>%
+  t_test(nonflu ~ prompt) %>% 
+  add_significance()
+eff_size = cohen.d(liwc$nonflu,liwc$prompt)
+
+
+ggplot(liwc, aes(x = prompt, y = nonflu, fill = prompt)) + 
+  labs(y = "nonflu") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Banff", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Banff", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(nonflu), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> Reponses to SWLS prompts possessed "junk" </b>
+
+
+# User-experience {.tabset}
+
+```{r}
+data = read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/data/WB_help_useful.csv")
+
+merged = merge(liwc, data, by = "pID")
+
+df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/data/LP2_Wellbeing-Prediction_Behavioral.csv")
+
+```
+
+## Comparing Helpfulness across Methods 
+
+```{r}
+stat.test <- data %>%
+  t_test(study_exp_helpful ~ Reflection_Type) %>% 
+  add_significance()
+eff_size = cohen.d(data$study_exp_helpful,data$Reflection_Type)
+
+
+ggplot(data, aes(x = Reflection_Type, y = study_exp_helpful, fill = Reflection_Type)) + 
+  labs(y = "Perceived Helpfulness") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(study_exp_helpful), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> No difference across methods in helpfulness </b>
+
+## Comparing Usefulness
+
+```{r}
+stat.test <- data %>%
+  t_test(reflection_useful_1 ~ Reflection_Type) %>% 
+  add_significance()
+eff_size = cohen.d(data$reflection_useful_1,data$Reflection_Type)
+
+
+ggplot(data, aes(x = Reflection_Type, y = reflection_useful_1, fill = Reflection_Type)) + 
+  labs(y = "Perceived Usefulness") +
+  geom_boxplot(alpha = 0.4,      # Transparency of boxplots
+               outlier.colour = "black",
+               color = "black") + 
+  scale_fill_manual(values = natparks.pals("Arches", 4)) +  # Apply custom fill colors
+  scale_color_manual(values = natparks.pals("Arches", 4)) +  # Apply custom color scale
+  geom_text(aes(x = 1.5, y = max(reflection_useful_1), 
+                label = sprintf("d = %.02f, p = %.03f", eff_size$estimate, stat.test$p)),
+            hjust = 0, vjust = 1, size = 6) +  # Text annotation
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 18,  # Shape of the point (circle)
+               size = 3,   # Size of the point
+               color = "black",  # Color of the point outline
+               position = position_dodge(width = 0.75)) +  # Dodge the points for better visibility
+  geom_text(stat = "summary", aes(label = round(..y.., 2)),
+            vjust = -0.5, size = 5, position = position_dodge(width = 0.75)) + plot_aes
+```
+
+> <b> No difference across methods in usefulness </b>
+
+## Exploring Open-ended Feedback {.tabset}
+
+```{r}
+data = data %>% 
+  select(1:5)
+```
+
+### Overall Experience
+
+```{r}
+data %>% 
+  select(pID,Reflection_Type,OE_experience) %>% 
+  reactable(striped = TRUE,
+            filterable = TRUE,
+            resizable = TRUE,
+            pageSizeOptions = 25)
+```
+
+### Interest / Enjoyment 
+
+```{r}
+data %>% 
+  select(pID,Reflection_Type,OE_interest_enjoy) %>% 
+  reactable(striped = TRUE,
+            filterable = TRUE,
+            resizable = TRUE,
+             pageSizeOptions = 25)
+```
+
+### Usefulness 
+
+```{r}
+data %>% 
+  select(pID,Reflection_Type,OE_usefulness) %>% 
+  reactable(striped = TRUE,
+            filterable = TRUE,
+            resizable = TRUE,
+             pageSizeOptions = 25)
+```

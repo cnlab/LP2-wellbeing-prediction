@@ -27,7 +27,7 @@ options(scipen=999)
 if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
 library(pacman)
 
-setwd("~/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/item_level_analyses")
+#setwd("~/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/item_level_analyses")
 
 pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,install = T) 
 # Set-up an environment with text-required python packages
@@ -96,9 +96,9 @@ table <- function(correlation_data) {
 # load data
 
 ```{r load-data}
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/surveys_scored/LP2_transcriptions_behavioral.csv")
+df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_text/surveys_scored/LP2_transcriptions_behavioral.csv")
 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/embeddings/all_embeddings.rds")
+embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_text/embeddings/study_1/all_embeddings.rds")
 ```
 
 ```{r eval=FALSE, include=FALSE}

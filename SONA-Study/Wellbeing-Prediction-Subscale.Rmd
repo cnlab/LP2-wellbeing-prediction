@@ -1,0 +1,1778 @@
+---
+title: "Well-being Prediction (Subscale-level)"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "item_level/item_")
+options(scipen=999)
+```
+
+
+```{r load packages and installize conda environment, include=FALSE}
+if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
+library(pacman)
+
+#setwd("~/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/item_level_analyses")
+
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,install = T) 
+# Set-up an environment with text-required python packages
+```
+
+```{r eval=FALSE, include=FALSE}
+library(text)
+textrpp_install()
+textrpp_initialize()
+
+```
+
+```{r}
+plot_aes = theme_minimal() +
+  theme(legend.position = "none",
+        text = element_text(family = "Futura Medium"),
+        axis.ticks.y = element_blank())
+```
+
+```{r define functions}
+calculate_and_store_rmse <- function(column_name, model_names, actual_values, predicted_values) {
+  results_list <- list()
+  
+  for (col_name in model_names) {
+    if (grepl(column_name, col_name)) {
+      rmse_value <- Metrics::rmse(actual_values[[column_name]], predicted_values[[col_name]])
+      results_list <- c(results_list, list(data.frame(Model = col_name, RMSE = rmse_value)))
+    }
+  }
+  
+  return(results_list)
+}
+
+# Initialize an empty list to store results
+results <- list()
+
+
+table <- function(correlation_data) {
+  # Convert the character columns to factors for better rendering
+  correlation_data$descriptions <- gsub("^Q[0-9]+\\.\\.(.+?)\\.\\.Transcription", "\\1", correlation_data$descriptions)
+  correlation_data$descriptions <- gsub("(\\d)_([A-Za-z])", "\\1~\\2", correlation_data$descriptions)
+
+  correlation_data$descriptions <- as.factor(correlation_data$descriptions)
+  correlation_data$alternative <- as.factor(correlation_data$alternative)
+  # Round the numeric columns to three decimal places
+  correlation_data$correlation <- round(as.numeric(correlation_data$correlation), 2)
+  correlation_data$t_statistics <- round(as.numeric(correlation_data$t_statistics), 3)
+  correlation_data$p_value <- sapply(correlation_data$p_value, function(p) {
+    ifelse(as.numeric(p) < 0.001, "< .001", 
+           ifelse(as.numeric(p) == 1, "1.000", 
+                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
+  })
+  correlation_data$p_value_corrected <- round(as.numeric(correlation_data$p_value_corrected), 3)
+
+  # Add the RMSE column
+  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 2)
+
+  # Create the DataTable
+  datatable(correlation_data, extensions = 'FixedColumns', 
+            filter = list(position = 'top', clear = FALSE),
+            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+}
+
+
+```
+
+# load data
+
+```{r load-data}
+df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/data/LP2_Wellbeing-Prediction_Behavioral.csv")
+
+###turn to wide format 
+
+df = df %>% 
+  select(pID, score, measure) %>% 
+   spread(key = measure, value = score)
+
+###prep the text data 
+text <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/data_text/wellbeing-prediction-text-long.csv")
+
+
+text_grouped <- text %>%
+  group_by(pID, prompt) %>%
+  summarize(
+    text_combined = paste(text, collapse = " "),
+    .groups = "drop"  # To avoid keeping group structure
+  )
+
+# Reshape data from long to wide format
+text_embed <- text_grouped %>%
+  spread(key = prompt, value = text_combined)
+
+
+text_embed_pids <- unique(text_embed$pID)
+
+# Filter df to include only rows with pID in text_embed_pids
+df <- df %>%
+  filter(pID %in% text_embed_pids)
+
+
+embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/embeddings/wellbeing-prediction-embeddings.rds")
+```
+
+
+# All Responses (audio + text) {.tabset}
+
+## Satisfaction with Life {.tabset}
+
+### Models {.tabset}
+
+```{r}
+
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/SWLS_subscale.RDS")) {
+  SWLS_subscale <- textTrainLists(
+    x = embeddings$texts$SWLS, #use satifaction with life
+    y = df[2:9],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "SWLS embeddings predicting PWB and SWLS, N = 144"
+  )
+   # Save the model output to an RDS file
+  saveRDS(SWLS_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/SWLS_subscale.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  SWLS_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/SWLS_subscale.RDS")
+}
+filtered_predictions <- na.omit(SWLS_subscale$predictions[1:8])
+SWLS_subscale_predictions <- as.data.frame(filtered_predictions)
+models <- c(colnames(SWLS_subscale$predictions[1:8]))
+
+
+###prep the data to calculate RMSE values 
+
+data = df %>% 
+  select(-pID) 
+
+results = list()
+column_names = colnames(data)
+for (column_name in column_names) {
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = data,
+    predicted_values = SWLS_subscale_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+SWLS_rmse <- results %>%
+  bind_rows() %>%
+  distinct()
+}
+
+# Associate RMSE with subscale results
+SWLS_subscale_results <- head(SWLS_subscale$results, 8)
+SWLS_subscale_results$RMSE <- SWLS_rmse$RMSE
+
+
+###extract information for heatmap
+SWLS_subscale_results <- 
+  SWLS_subscale_results %>%
+  mutate(
+    prompt = ifelse(grepl("SWLS_", descriptions), "SWLS", NA),
+    outcome = ifelse(grepl("embeddings\\$texts\\$SWLS_", descriptions), 
+                     gsub(".*SWLS_", "", descriptions),
+                     NA))
+
+table(SWLS_subscale_results)
+```
+
+### Heatmaps
+
+```{r}
+
+SWLS_subscale_results <- SWLS_subscale_results %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    df = as.numeric(df),
+    p_value = as.numeric(p_value),
+    p_value_corrected = as.numeric(p_value_corrected),
+    t_statistics = as.numeric(t_statistics)
+  )
+
+
+SWLS_heat =  ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) + plot_aes
+
+SWLS_heat
+```
+### Satisfaction with Life Words Related to Overall Well-being
+
+```{r eval=FALSE, fig.height=7, fig.width=7, include=FALSE}
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/SDP/SWLS_SWLS_PWB_SDP.RDS")) {
+  # If the file doesn't exist, perform the analysis
+ SWLS_SWLS_PWB_SDP <- textProjection(
+    words = text_embed$SWLS,
+    word_embeddings = embeddings$texts$SWLS,
+    word_types_embeddings = embeddings$word_types$SWLS,
+    x = df$`SWLS mean`,
+    y = df$`PWB mean`)
+  # Save the results in an RDS file
+  saveRDS(SWLS_SWLS_PWB_SDP, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/SDP/SWLS_SWLS_PWB_SDP.RDS")
+} else {
+  # If the file exists, load the results from the RDS file
+  SWLS_SWLS_PWB_SDP <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/SDP/SWLS_SWLS_PWB_SDP.RDS")
+}
+# Filter the DataFrame based on your criteria
+#stat sig words with freq > 10 
+
+SWLS_SWLS_PWB <- textProjectionPlot(
+  word_data = SWLS_SWLS_PWB_SDP,
+  k_n_words_to_test = FALSE,
+  min_freq_words_test = 10,
+  min_freq_words_plot = 10,
+  plot_n_words_square = 10,
+  plot_n_words_p = 10,
+  plot_n_word_extreme = 10,
+  plot_n_word_frequency = 10,
+  plot_n_words_middle = 5,
+  titles_color = "black",
+  y_axes = T,
+  p_alpha = 0.05,
+  title_top = "Supervised Dimension Projection:\nSWLS Responses ~~ Well-being Ratings (Entire Corpus)",
+  x_axes_label = "Low vs High SWLS Scores",
+  y_axes_label = "Low vs High PWB Scores",
+  scale_x_axes_lim = NULL,
+  scale_y_axes_lim = NULL,
+  word_font = "Futura Medium",
+  bivariate_color_codes = c("#398CF9", "#60A1F7", "#40DD52", 
+                            "#e07f6a", "#EAEAEA","#5dc688", 
+                            "#FF0000", "#EA7467", "#85DB8E"),
+  word_size_range = c(2, 6),
+  position_jitter_hight = 0,
+  position_jitter_width = 0.03,
+  point_size = 0.5,
+  arrow_transparency = 0.1,
+  points_without_words_size = 0.2,
+  points_without_words_alpha = 0.2,
+  legend_title = "SDP",
+  legend_x_axes_label = "x",
+  legend_y_axes_label = "y",
+  legend_x_position = 0.02,
+  legend_y_position = 0.02,
+  legend_h_size = 0.2,
+  legend_w_size = 0.2,
+  legend_title_size = 7,
+  legend_number_size = 2,
+  group_embeddings1 = FALSE,
+  group_embeddings2 = FALSE,
+  projection_embedding = FALSE,
+  aggregated_point_size = 0.8,
+  aggregated_shape = 8,
+  aggregated_color_G1 = "black",
+  aggregated_color_G2 = "black",
+  projection_color = "blue",
+  seed = 1005,
+  explore_words = NULL,
+  explore_words_color = "#ad42f5",
+  explore_words_point = "ALL_1",
+  explore_words_aggregation = "mean",
+  remove_words = NULL,
+  n_contrast_group_color = NULL,
+  n_contrast_group_remove = FALSE,
+  space = NULL,
+  scaling = FALSE
+)
+
+SWLS_SWLS_PWB$final_plot
+```
+
+
+
+## Autonomy {.tabset}
+
+### Models
+
+```{r}
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/autonomy_subscale.RDS")) {
+  Autonomy_subscale <- textTrainLists(
+    x = embeddings$texts$Autonomy, #use satifaction with life
+    y = df[2:9],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "Autonomy embeddings predicting PWB and SWLS, N = 144"
+  )
+   # Save the model output to an RDS file
+  saveRDS(Autonomy_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/autonomy_subscale.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  Autonomy_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/autonomy_subscale.RDS")
+}
+filtered_predictions <- na.omit(Autonomy_subscale$predictions[1:8])
+Autonomy_subscale_predictions <- as.data.frame(filtered_predictions)
+models <- c(colnames(Autonomy_subscale$predictions[1:8]))
+
+results = list()
+column_names = colnames(data)
+for (column_name in column_names) {
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = data,
+    predicted_values = Autonomy_subscale_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+Autonomy_rmse <- results %>%
+  bind_rows() %>%
+  distinct()
+}
+
+# Associate RMSE with subscale results
+Autonomy_subscale_results <- head(Autonomy_subscale$results, 8)
+Autonomy_subscale_results$RMSE <- Autonomy_rmse$RMSE
+
+table(Autonomy_subscale_results)
+
+
+Autonomy_subscale_results <- 
+  Autonomy_subscale_results %>%
+  mutate(
+    prompt = ifelse(grepl("Autonomy_", descriptions), "Autonomy", NA),
+    outcome = ifelse(grepl("embeddings\\$texts\\$Autonomy_", descriptions), 
+                     gsub(".*Autonomy_", "", descriptions),
+                     NA))
+
+```
+
+### Heatmaps 
+
+```{r}
+Autonomy_subscale_results <- Autonomy_subscale_results %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    df = as.numeric(df),
+    p_value = as.numeric(p_value),
+    p_value_corrected = as.numeric(p_value_corrected),
+    t_statistics = as.numeric(t_statistics)
+  )
+
+
+Autonomy_heat =  ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) + plot_aes
+
+Autonomy_heat
+```
+
+### Autonomy Words Related to Overall Well-being
+
+```{r eval=FALSE, fig.height=7, fig.width=7, include=FALSE}
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/SDP/Autonomy_SWLS_PWB_SDP.RDS")) {
+  # If the file doesn't exist, perform the analysis
+ Autonomy_SWLS_PWB <- textProjection(
+    words = text_embed$Autonomy,
+    word_embeddings = embeddings$texts$Autonomy,
+    word_types_embeddings = embeddings$word_types$Autonomy,
+    x = df$`SWLS mean`,
+    y = df$`PWB mean`)
+  # Save the results in an RDS file
+  saveRDS(Autonomy_SWLS_PWB, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/SDP/Autonomy_SWLS_PWB_SDP.RDS")
+} else {
+  # If the file exists, load the results from the RDS file
+  Autonomy_SWLS_PWB <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/SDP/Autonomy_SWLS_PWB_SDP.RDS")
+}
+# Filter the DataFrame based on your criteria
+#stat sig words with freq > 10 
+
+Autonomy_SWLS_PWB_SDP <- textProjectionPlot(
+  word_data = Autonomy_SWLS_PWB,
+  k_n_words_to_test = FALSE,
+  min_freq_words_test = 10,
+  min_freq_words_plot = 10,
+  plot_n_words_square = 10,
+  plot_n_words_p = 10,
+  plot_n_word_extreme = 10,
+  plot_n_word_frequency = 10,
+  plot_n_words_middle = 5,
+  titles_color = "black",
+  y_axes = T,
+  p_alpha = 0.05,
+  title_top = "Supervised Dimension Projection:\n Autonomy Responses ~~ Well-being Ratings (Entire Corpus)",
+  x_axes_label = "Low vs High SWLS Scores",
+  y_axes_label = "Low vs High PWB Scores",
+  scale_x_axes_lim = NULL,
+  scale_y_axes_lim = NULL,
+  word_font = "Futura Medium",
+  bivariate_color_codes = c("#398CF9", "#60A1F7", "#40DD52", 
+                            "#e07f6a", "#EAEAEA","#5dc688", 
+                            "#FF0000", "#EA7467", "#85DB8E"),
+  word_size_range = c(2, 6),
+  position_jitter_hight = 0,
+  position_jitter_width = 0.03,
+  point_size = 0.5,
+  arrow_transparency = 0.1,
+  points_without_words_size = 0.2,
+  points_without_words_alpha = 0.2,
+  legend_title = "SDP",
+  legend_x_axes_label = "x",
+  legend_y_axes_label = "y",
+  legend_x_position = 0.02,
+  legend_y_position = 0.02,
+  legend_h_size = 0.2,
+  legend_w_size = 0.2,
+  legend_title_size = 7,
+  legend_number_size = 2,
+  group_embeddings1 = FALSE,
+  group_embeddings2 = FALSE,
+  projection_embedding = FALSE,
+  aggregated_point_size = 0.8,
+  aggregated_shape = 8,
+  aggregated_color_G1 = "black",
+  aggregated_color_G2 = "black",
+  projection_color = "blue",
+  seed = 1005,
+  explore_words = NULL,
+  explore_words_color = "#ad42f5",
+  explore_words_point = "ALL_1",
+  explore_words_aggregation = "mean",
+  remove_words = NULL,
+  n_contrast_group_color = NULL,
+  n_contrast_group_remove = FALSE,
+  space = NULL,
+  scaling = FALSE
+)
+
+Autonomy_SWLS_PWB_SDP$final_plot
+```
+
+## All heatmaps (all data)
+
+```{r all-heat}
+all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = T)
+
+all_heat +
+  ggtitle("Subscale Predictions") +
+  plot_aes  +  
+  theme(
+    plot.title = element_text(hjust = 0.5, vjust = 1.5)
+  ) 
+```
+
+
+## Effects Plot
+
+```{r functions}
+calculate_and_store_rmse <- function(result_list) {
+  results_list <- list()
+  
+  for (model_name in names(result_list)) {
+    # Extract the current result data frame from the list
+    current_result <- result_list[[model_name]]
+    
+    # Extract observed and predicted values
+    observed_values <- current_result$predictions$y
+    predicted_values <- current_result$predictions$predictions
+    
+    # Debugging: Print model name and lengths of vectors
+    cat("Model:", model_name, "\n")
+    cat("Length of observed_values:", length(observed_values), "\n")
+    cat("Length of predicted_values:", length(predicted_values), "\n")
+    
+    # Convert to numeric
+    observed_values <- as.numeric(observed_values)
+    predicted_values <- as.numeric(predicted_values)
+    
+    # Check for non-numeric values
+    if (any(is.na(observed_values)) || any(is.na(predicted_values))) {
+      warning(paste("Model", model_name, "contains non-numeric or NA values in observed or predicted data. Skipping this model."))
+      next
+    }
+    
+    # Check if lengths of observed and predicted values match
+    if (length(observed_values) != length(predicted_values)) {
+      warning(paste("Model", model_name, "has mismatched lengths for observed and predicted values. Skipping this model."))
+      next
+    }
+    
+    # Calculate RMSE
+    rmse_value <- Metrics::rmse(observed_values, predicted_values)
+    
+    # Create a data frame for the current result
+    result_df <- data.frame(
+      model = model_name,
+      RMSE = rmse_value,
+      stringsAsFactors = FALSE
+    )
+    
+    # Add the data frame to results_list
+    results_list[[model_name]] <- result_df
+  }
+  
+  # Combine individual data frames into a single data frame
+  final_results_df <- do.call(rbind, results_list)
+  
+  return(final_results_df)
+}
+
+# Initialize an empty list to store results
+results <- list()
+
+
+table <- function(correlation_data) {
+  # Convert the character columns to factors for better rendering
+  correlation_data$model <- as.factor(correlation_data$model)
+  correlation_data$method <- as.factor(correlation_data$method)
+  correlation_data$data.name <- as.factor(correlation_data$data.name)
+  correlation_data$alternative <- as.factor(correlation_data$alternative)
+
+  # Round the numeric columns to three decimal places
+  correlation_data$statistic <- round(as.numeric(correlation_data$statistic), 3)
+  correlation_data$parameter <- as.integer(correlation_data$parameter)
+  correlation_data$p.value <- sapply(correlation_data$p.value, function(p) {
+    ifelse(as.numeric(p) < 0.001, "< .001", 
+           ifelse(as.numeric(p) == 1, "1.000", 
+                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
+  })
+  correlation_data$r <- round(as.numeric(correlation_data$r), 3)
+  correlation_data$null.value <- round(as.numeric(correlation_data$null.value), 3)
+  correlation_data$conf.int_low <- round(as.numeric(correlation_data$conf.int_low), 3)
+  correlation_data$conf.int_high <- round(as.numeric(correlation_data$conf.int_high), 3)
+  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 3)
+
+  # Create the DataTable
+  datatable(correlation_data, extensions = 'FixedColumns', 
+            filter = list(position = 'top', clear = FALSE),
+            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+}
+
+
+####use this to create a df for the subscale 
+process_results <- function(result_list) {
+  results <- data.frame(
+    model = character(),
+    statistic = numeric(),
+    parameter = integer(),
+    p.value = numeric(),
+    r = numeric(),
+    null.value = numeric(),
+    alternative = character(),
+    method = character(),
+    data.name = character(),
+    conf.int_low = numeric(),
+    conf.int_high = numeric(),
+    stringsAsFactors = FALSE
+  )
+
+  for (model_name in names(result_list)) {
+    # Extract the relevant information from the current data frame
+    current_result <- result_list[[model_name]]
+    
+    # Create a data frame for the current result
+    result_df <- data.frame(
+      model = model_name,
+      statistic = current_result$statistic,
+      parameter = current_result$parameter,
+      p.value = current_result$p.value,
+      r = current_result$estimate,
+      null.value = current_result$null.value,
+      alternative = current_result$alternative,
+      method = current_result$method,
+      data.name = current_result$data.name,
+      conf.int_low = current_result$conf.int[1],
+      conf.int_high = current_result$conf.int[2]
+    )
+    
+    # Add the data frame to autonomy_results
+    results <- rbind(results, result_df)
+  }
+
+  return(results)
+}
+
+```
+
+
+```{r}
+#stitch together datasets... need to extract confidence intervals
+
+### Autonomy 
+result_list <- list(
+  autonomy_acceptance_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB self_acceptance`$results,
+  autonomy_autonomy_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB autonomy`$results,
+  autonomy_growth_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB personal_growth`$results,
+  autonomy_purpose_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB purpose`$results,
+  autonomy_relationships_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB positive_relations`$results,
+  autonomy_PWB_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB mean`$results,
+  autonomy_SWLS_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_SWLS mean`$results
+)
+
+autonomy_results <- process_results(result_list)
+
+
+autonomy_results<- 
+  autonomy_results %>%
+  mutate(
+    prompt = ifelse(grepl("autonomy_", model), "autonomy", NA),
+    outcome = ifelse(grepl("_sub", model), gsub(".*autonomy_", "", gsub("_sub", "", model)), NA))
+
+
+#### SWLA 
+
+result_list <- list(
+  SWLS_acceptance_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB self_acceptance`$results,
+  SWLS_autonomy_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB autonomy`$results,
+  SWLS_growth_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB personal_growth`$results,
+  SWLS_purpose_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB purpose`$results,
+  SWLS_relationships_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB positive_relations`$results,
+  SWLS_PWB_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB mean`$results,
+  SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_SWLS mean`$results
+)
+
+SWLS_results <- process_results(result_list)
+
+
+SWLS_results<- 
+  SWLS_results %>%
+  mutate(
+    prompt = ifelse(grepl("SWLS_", model), "SWLS", NA),
+    outcome = ifelse(grepl("_sub", model), gsub(".*SWLS_", "", gsub("_sub", "", model)), NA))
+
+
+### bind 
+
+all_effects = rbind(autonomy_results,SWLS_results)
+
+### subset 
+
+plot_data = all_effects %>% 
+  select(prompt,outcome,r,p.value,conf.int_low,conf.int_high)
+
+palette = c("#772e25", "#0a9396", "#94d2bd", "#e9d8a6", "#ca6702", "#bb3e03", "#9b2226","#6195C6", "#ADA7C9")
+plot_aes = theme_minimal() +
+  theme(legend.position = "top",
+        legend.text = element_text(size = 8),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = 20))  # Center and increase title size)
+
+
+ggplot(plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = conf.int_high, color = prompt, alpha = p.value < 0.05)) +
+  geom_pointrange(position = position_dodge(width = 0.6)) +
+  scale_color_manual(values = palette) +
+  scale_alpha_manual(values = c(0.2, 1), guide = FALSE) +  # Set alpha values
+  labs(title = "Satis. w/ Life & Autonomy Prompts",
+       x = "Pearson's Product Moment Correlation ",
+       y = "Psychological Outcome",
+       color = "Prompt Type") +
+  plot_aes + 
+  theme(axis.text.x = element_text(hjust = 1, size = 12)) +
+  scale_x_continuous(limits = c(-1, 1)) + 
+  facet_wrap(~prompt) +   
+  geom_vline(xintercept = 0, linetype = "dashed")
+
+
+```
+
+# Text only Responses {.tabset}
+
+```{r}
+df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/data/LP2_Wellbeing-Prediction_Behavioral.csv")
+
+###turn to wide format 
+
+df = df %>% 
+  select(pID, score, measure) %>% 
+   spread(key = measure, value = score)
+
+###prep the text data 
+text <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/data_text/wellbeing-prediction-text-long.csv")
+
+###prep the text data 
+
+text = text %>% 
+  select(pID,prompt,text,type) %>% 
+  filter(type == "Text") %>% 
+  select(-type)
+
+text_grouped <- text %>%
+  group_by(pID, prompt) %>%
+  summarize(
+    text_combined = paste(text, collapse = " "),
+    .groups = "drop"  # To avoid keeping group structure
+  )
+
+# Reshape data from long to wide format
+text_embed_text_only <- text_grouped %>%
+  spread(key = prompt, value = text_combined)
+
+
+
+text_embed_pids <- unique(text_embed_text_only$pID)
+
+# Filter df to include only rows with pID in text_embed_pids
+df <- df %>%
+  filter(pID %in% text_embed_pids)
+
+
+embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/embeddings/Text_Only_wellbeing-prediction-embeddings.rds")
+
+
+
+
+
+
+
+```
+
+
+```{r }
+calculate_and_store_rmse <- function(column_name, model_names, actual_values, predicted_values) {
+  results_list <- list()
+  
+  for (col_name in model_names) {
+    if (grepl(column_name, col_name)) {
+      rmse_value <- Metrics::rmse(actual_values[[column_name]], predicted_values[[col_name]])
+      results_list <- c(results_list, list(data.frame(Model = col_name, RMSE = rmse_value)))
+    }
+  }
+  
+  return(results_list)
+}
+
+# Initialize an empty list to store results
+results <- list()
+
+
+table <- function(correlation_data) {
+  # Convert the character columns to factors for better rendering
+  correlation_data$descriptions <- gsub("^Q[0-9]+\\.\\.(.+?)\\.\\.Transcription", "\\1", correlation_data$descriptions)
+  correlation_data$descriptions <- gsub("(\\d)_([A-Za-z])", "\\1~\\2", correlation_data$descriptions)
+
+  correlation_data$descriptions <- as.factor(correlation_data$descriptions)
+  correlation_data$alternative <- as.factor(correlation_data$alternative)
+  # Round the numeric columns to three decimal places
+  correlation_data$correlation <- round(as.numeric(correlation_data$correlation), 2)
+  correlation_data$t_statistics <- round(as.numeric(correlation_data$t_statistics), 3)
+  correlation_data$p_value <- sapply(correlation_data$p_value, function(p) {
+    ifelse(as.numeric(p) < 0.001, "< .001", 
+           ifelse(as.numeric(p) == 1, "1.000", 
+                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
+  })
+  correlation_data$p_value_corrected <- round(as.numeric(correlation_data$p_value_corrected), 3)
+
+  # Add the RMSE column
+  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 2)
+
+  # Create the DataTable
+  datatable(correlation_data, extensions = 'FixedColumns', 
+            filter = list(position = 'top', clear = FALSE),
+            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+}
+
+
+```
+
+## Satisfaction with Life {.tabset}
+
+### Models {.tabset}
+
+```{r}
+
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/Text_Only_SWLS_subscale.RDS")) {
+  SWLS_subscale <- textTrainLists(
+    x = embeddings$texts$SWLS, #use satifaction with life
+    y = df[2:9],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "SWLS embeddings predicting PWB and SWL; Text ONLY; N = 144"
+  )
+   # Save the model output to an RDS file
+  saveRDS(SWLS_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/Text_Only_SWLS_subscale.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  SWLS_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/Text_Only_SWLS_subscale.RDS")
+}
+
+
+####have a lower # of observations so need to be careful interpreting these results 
+
+filtered_predictions <- na.omit(SWLS_subscale$predictions[1:8])
+SWLS_subscale_predictions <- as.data.frame(filtered_predictions)
+models <- c(colnames(SWLS_subscale$predictions[1:8]))
+
+
+###prep the data to calculate RMSE values 
+
+data = df %>% 
+  select(-pID) 
+
+results = list()
+column_names = colnames(data)
+for (column_name in column_names) {
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = data,
+    predicted_values = SWLS_subscale_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+SWLS_rmse <- results %>%
+  bind_rows() %>%
+  distinct()
+}
+
+# Associate RMSE with subscale results
+SWLS_subscale_results <- head(SWLS_subscale$results, 8)
+SWLS_subscale_results$RMSE <- SWLS_rmse$RMSE
+
+
+###extract information for heatmap
+SWLS_subscale_results <- 
+  SWLS_subscale_results %>%
+  mutate(
+    prompt = ifelse(grepl("SWLS_", descriptions), "SWLS", NA),
+    outcome = ifelse(grepl("embeddings\\$texts\\$SWLS_", descriptions), 
+                     gsub(".*SWLS_", "", descriptions),
+                     NA))
+
+table(SWLS_subscale_results)
+```
+
+### Heatmaps
+
+```{r text-only-swls-heat}
+
+SWLS_subscale_results <- SWLS_subscale_results %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    df = as.numeric(df),
+    p_value = as.numeric(p_value),
+    p_value_corrected = as.numeric(p_value_corrected),
+    t_statistics = as.numeric(t_statistics)
+  )
+
+
+SWLS_heat =  ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) + plot_aes
+
+SWLS_heat
+```
+
+## Autonomy {.tabset}
+
+### Models
+
+```{r}
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/Text_Only_autonomy_subscale.RDS")) {
+  Autonomy_subscale <- textTrainLists(
+    x = embeddings$texts$Autonomy, #use satifaction with life
+    y = df[2:9],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "Autonomy embeddings predicting PWB and SWLS, N = 144"
+  )
+   # Save the model output to an RDS file
+  saveRDS(Autonomy_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/Text_Only_autonomy_subscale.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  Autonomy_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/Text_Only_autonomy_subscale.RDS")
+}
+filtered_predictions <- na.omit(Autonomy_subscale$predictions[1:8])
+Autonomy_subscale_predictions <- as.data.frame(filtered_predictions)
+models <- c(colnames(Autonomy_subscale$predictions[1:8]))
+
+results = list()
+column_names = colnames(data)
+for (column_name in column_names) {
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = data,
+    predicted_values = Autonomy_subscale_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+Autonomy_rmse <- results %>%
+  bind_rows() %>%
+  distinct()
+}
+
+# Associate RMSE with subscale results
+Autonomy_subscale_results <- head(Autonomy_subscale$results, 8)
+Autonomy_subscale_results$RMSE <- Autonomy_rmse$RMSE
+
+table(Autonomy_subscale_results)
+
+
+Autonomy_subscale_results <- 
+  Autonomy_subscale_results %>%
+  mutate(
+    prompt = ifelse(grepl("Autonomy_", descriptions), "Autonomy", NA),
+    outcome = ifelse(grepl("embeddings\\$texts\\$Autonomy_", descriptions), 
+                     gsub(".*Autonomy_", "", descriptions),
+                     NA))
+
+```
+
+### Heatmaps 
+
+```{r text-only-autonomy-heat}
+Autonomy_subscale_results <- Autonomy_subscale_results %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    df = as.numeric(df),
+    p_value = as.numeric(p_value),
+    p_value_corrected = as.numeric(p_value_corrected),
+    t_statistics = as.numeric(t_statistics)
+  )
+
+
+Autonomy_heat =  ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) + plot_aes
+
+SWLS_heat
+```
+
+
+## All heatmaps (text only )
+
+```{r all-heat-text-only}
+all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = T)
+
+all_heat +
+  ggtitle("Subscale Predictions (Text Only)") +
+  plot_aes  +  
+  theme(
+    plot.title = element_text(hjust = 0.5, vjust = 1.5)
+  ) 
+```
+
+## Effects Plot
+
+```{r}
+calculate_and_store_rmse <- function(result_list) {
+  results_list <- list()
+  
+  for (model_name in names(result_list)) {
+    # Extract the current result data frame from the list
+    current_result <- result_list[[model_name]]
+    
+    # Extract observed and predicted values
+    observed_values <- current_result$predictions$y
+    predicted_values <- current_result$predictions$predictions
+    
+    # Debugging: Print model name and lengths of vectors
+    cat("Model:", model_name, "\n")
+    cat("Length of observed_values:", length(observed_values), "\n")
+    cat("Length of predicted_values:", length(predicted_values), "\n")
+    
+    # Convert to numeric
+    observed_values <- as.numeric(observed_values)
+    predicted_values <- as.numeric(predicted_values)
+    
+    # Check for non-numeric values
+    if (any(is.na(observed_values)) || any(is.na(predicted_values))) {
+      warning(paste("Model", model_name, "contains non-numeric or NA values in observed or predicted data. Skipping this model."))
+      next
+    }
+    
+    # Check if lengths of observed and predicted values match
+    if (length(observed_values) != length(predicted_values)) {
+      warning(paste("Model", model_name, "has mismatched lengths for observed and predicted values. Skipping this model."))
+      next
+    }
+    
+    # Calculate RMSE
+    rmse_value <- Metrics::rmse(observed_values, predicted_values)
+    
+    # Create a data frame for the current result
+    result_df <- data.frame(
+      model = model_name,
+      RMSE = rmse_value,
+      stringsAsFactors = FALSE
+    )
+    
+    # Add the data frame to results_list
+    results_list[[model_name]] <- result_df
+  }
+  
+  # Combine individual data frames into a single data frame
+  final_results_df <- do.call(rbind, results_list)
+  
+  return(final_results_df)
+}
+
+# Initialize an empty list to store results
+results <- list()
+
+
+table <- function(correlation_data) {
+  # Convert the character columns to factors for better rendering
+  correlation_data$model <- as.factor(correlation_data$model)
+  correlation_data$method <- as.factor(correlation_data$method)
+  correlation_data$data.name <- as.factor(correlation_data$data.name)
+  correlation_data$alternative <- as.factor(correlation_data$alternative)
+
+  # Round the numeric columns to three decimal places
+  correlation_data$statistic <- round(as.numeric(correlation_data$statistic), 3)
+  correlation_data$parameter <- as.integer(correlation_data$parameter)
+  correlation_data$p.value <- sapply(correlation_data$p.value, function(p) {
+    ifelse(as.numeric(p) < 0.001, "< .001", 
+           ifelse(as.numeric(p) == 1, "1.000", 
+                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
+  })
+  correlation_data$r <- round(as.numeric(correlation_data$r), 3)
+  correlation_data$null.value <- round(as.numeric(correlation_data$null.value), 3)
+  correlation_data$conf.int_low <- round(as.numeric(correlation_data$conf.int_low), 3)
+  correlation_data$conf.int_high <- round(as.numeric(correlation_data$conf.int_high), 3)
+  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 3)
+
+  # Create the DataTable
+  datatable(correlation_data, extensions = 'FixedColumns', 
+            filter = list(position = 'top', clear = FALSE),
+            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+}
+
+
+####use this to create a df for the subscale 
+process_results <- function(result_list) {
+  results <- data.frame(
+    model = character(),
+    statistic = numeric(),
+    parameter = integer(),
+    p.value = numeric(),
+    r = numeric(),
+    null.value = numeric(),
+    alternative = character(),
+    method = character(),
+    data.name = character(),
+    conf.int_low = numeric(),
+    conf.int_high = numeric(),
+    stringsAsFactors = FALSE
+  )
+
+  for (model_name in names(result_list)) {
+    # Extract the relevant information from the current data frame
+    current_result <- result_list[[model_name]]
+    
+    # Create a data frame for the current result
+    result_df <- data.frame(
+      model = model_name,
+      statistic = current_result$statistic,
+      parameter = current_result$parameter,
+      p.value = current_result$p.value,
+      r = current_result$estimate,
+      null.value = current_result$null.value,
+      alternative = current_result$alternative,
+      method = current_result$method,
+      data.name = current_result$data.name,
+      conf.int_low = current_result$conf.int[1],
+      conf.int_high = current_result$conf.int[2]
+    )
+    
+    # Add the data frame to autonomy_results
+    results <- rbind(results, result_df)
+  }
+
+  return(results)
+}
+
+```
+
+
+```{r}
+#stitch together datasets... need to extract confidence intervals
+
+### Autonomy 
+result_list <- list(
+  autonomy_acceptance_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB self_acceptance`$results,
+  autonomy_autonomy_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB autonomy`$results,
+  autonomy_growth_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB personal_growth`$results,
+  autonomy_purpose_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB purpose`$results,
+  autonomy_relationships_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB positive_relations`$results,
+  autonomy_PWB_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB mean`$results,
+  autonomy_SWLS_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_SWLS mean`$results
+)
+
+autonomy_results <- process_results(result_list)
+
+
+autonomy_results<- 
+  autonomy_results %>%
+  mutate(
+    prompt = ifelse(grepl("autonomy_", model), "autonomy", NA),
+    outcome = ifelse(grepl("_sub", model), gsub(".*autonomy_", "", gsub("_sub", "", model)), NA))
+
+
+#### SWLA 
+
+result_list <- list(
+  SWLS_acceptance_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB self_acceptance`$results,
+  SWLS_autonomy_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB autonomy`$results,
+  SWLS_growth_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB personal_growth`$results,
+  SWLS_purpose_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB purpose`$results,
+  SWLS_relationships_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB positive_relations`$results,
+  SWLS_PWB_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB mean`$results,
+  SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_SWLS mean`$results
+)
+
+SWLS_results <- process_results(result_list)
+
+
+SWLS_results<- 
+  SWLS_results %>%
+  mutate(
+    prompt = ifelse(grepl("SWLS_", model), "SWLS", NA),
+    outcome = ifelse(grepl("_sub", model), gsub(".*SWLS_", "", gsub("_sub", "", model)), NA))
+
+
+### bind 
+
+text_all_effects = rbind(autonomy_results,SWLS_results)
+
+### subset 
+
+text_plot_data = text_all_effects %>% 
+  select(prompt,outcome,r,p.value,conf.int_low,conf.int_high)
+
+palette = c("#ADA7C9","#9b2226")
+plot_aes = theme_minimal() +
+  theme(legend.position = "top",
+        legend.text = element_text(size = 8),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = 20))  # Center and increase title size)
+
+
+ggplot(text_plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = conf.int_high, color = prompt, alpha = p.value < 0.05)) +
+  geom_pointrange(position = position_dodge(width = 0.6)) +
+  scale_color_manual(values = palette) +
+  scale_alpha_manual(values = c(0.4, 1), guide = FALSE) +  # Set alpha values
+  labs(title = "Satis. w/ Life & Autonomy Prompts (Text Only)",
+       x = "Pearson's Product Moment Correlation ",
+       y = "Psychological Outcome",
+       color = "Prompt Type") +
+  plot_aes + 
+  theme(axis.text.x = element_text(hjust = 1, size = 12)) +
+  scale_x_continuous(limits = c(-1, 1)) + 
+  facet_wrap(~prompt) +   
+  geom_vline(xintercept = 0, linetype = "dashed")
+
+
+```
+
+# Audio only Responses {.tabset}
+
+```{r }
+calculate_and_store_rmse <- function(column_name, model_names, actual_values, predicted_values) {
+  results_list <- list()
+  
+  for (col_name in model_names) {
+    if (grepl(column_name, col_name)) {
+      rmse_value <- Metrics::rmse(actual_values[[column_name]], predicted_values[[col_name]])
+      results_list <- c(results_list, list(data.frame(Model = col_name, RMSE = rmse_value)))
+    }
+  }
+  
+  return(results_list)
+}
+
+# Initialize an empty list to store results
+results <- list()
+
+
+table <- function(correlation_data) {
+  # Convert the character columns to factors for better rendering
+  correlation_data$descriptions <- gsub("^Q[0-9]+\\.\\.(.+?)\\.\\.Transcription", "\\1", correlation_data$descriptions)
+  correlation_data$descriptions <- gsub("(\\d)_([A-Za-z])", "\\1~\\2", correlation_data$descriptions)
+
+  correlation_data$descriptions <- as.factor(correlation_data$descriptions)
+  correlation_data$alternative <- as.factor(correlation_data$alternative)
+  # Round the numeric columns to three decimal places
+  correlation_data$correlation <- round(as.numeric(correlation_data$correlation), 2)
+  correlation_data$t_statistics <- round(as.numeric(correlation_data$t_statistics), 3)
+  correlation_data$p_value <- sapply(correlation_data$p_value, function(p) {
+    ifelse(as.numeric(p) < 0.001, "< .001", 
+           ifelse(as.numeric(p) == 1, "1.000", 
+                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
+  })
+  correlation_data$p_value_corrected <- round(as.numeric(correlation_data$p_value_corrected), 3)
+
+  # Add the RMSE column
+  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 2)
+
+  # Create the DataTable
+  datatable(correlation_data, extensions = 'FixedColumns', 
+            filter = list(position = 'top', clear = FALSE),
+            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+}
+
+
+```
+
+
+```{r}
+df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/data/LP2_Wellbeing-Prediction_Behavioral.csv")
+
+###turn to wide format 
+
+df = df %>% 
+  select(pID, score, measure) %>% 
+   spread(key = measure, value = score)
+
+###prep the text data 
+text <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/data_text/wellbeing-prediction-text-long.csv")
+
+text = text %>% 
+  select(pID,prompt,text,type) %>% 
+  filter(type == "Audio") %>% 
+  select(-type)
+
+text_grouped <- text %>%
+  group_by(pID, prompt) %>%
+  summarize(
+    text_combined = paste(text, collapse = " "),
+    .groups = "drop"  # To avoid keeping group structure
+  )
+
+# Reshape data from long to wide format
+text_embed_audio_only <- text_grouped %>%
+  spread(key = prompt, value = text_combined)
+
+text_embed_pids <- unique(text_embed_audio_only$pID)
+
+# Filter df to include only rows with pID in text_embed_pids
+df <- df %>%
+  filter(pID %in% text_embed_pids)
+
+
+#audio_only_descriptives = textDescriptives(text_embed_audio_only[2:3],
+#  compute_total = TRUE,
+#  entropy_unit = "log2",
+#  na.rm = TRUE,
+#  locale = "en_US")
+
+embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/embeddings/Audio_Only_wellbeing-prediction-embeddings.rds")
+```
+
+## Satisfaction with Life {.tabset}
+
+### Models {.tabset}
+
+```{r}
+
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/Audio_Only_SWLS_subscale.RDS")) {
+  SWLS_subscale <- textTrainLists(
+    x = embeddings$texts$SWLS, #use satifaction with life
+    y = df[2:9],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "SWLS embeddings predicting PWB and SWL; Text ONLY; N = 144"
+  )
+   # Save the model output to an RDS file
+  saveRDS(SWLS_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/Audio_Only_SWLS_subscale.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  SWLS_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/Audio_Only_SWLS_subscale.RDS")
+}
+
+
+####have a lower # of observations so need to be careful interpreting these results 
+
+filtered_predictions <- na.omit(SWLS_subscale$predictions[1:8])
+SWLS_subscale_predictions <- as.data.frame(filtered_predictions)
+models <- c(colnames(SWLS_subscale$predictions[1:8]))
+
+
+###prep the data to calculate RMSE values 
+
+data = df %>% 
+  select(-pID) 
+
+results = list()
+column_names = colnames(data)
+for (column_name in column_names) {
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = data,
+    predicted_values = SWLS_subscale_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+SWLS_rmse <- results %>%
+  bind_rows() %>%
+  distinct()
+}
+
+# Associate RMSE with subscale results
+SWLS_subscale_results <- head(SWLS_subscale$results, 8)
+SWLS_subscale_results$RMSE <- SWLS_rmse$RMSE
+
+
+###extract information for heatmap
+SWLS_subscale_results <- 
+  SWLS_subscale_results %>%
+  mutate(
+    prompt = ifelse(grepl("SWLS_", descriptions), "SWLS", NA),
+    outcome = ifelse(grepl("embeddings\\$texts\\$SWLS_", descriptions), 
+                     gsub(".*SWLS_", "", descriptions),
+                     NA))
+
+table(SWLS_subscale_results)
+```
+
+### Heatmaps
+
+```{r audio-only-swls-heat}
+
+SWLS_subscale_results <- SWLS_subscale_results %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    df = as.numeric(df),
+    p_value = as.numeric(p_value),
+    p_value_corrected = as.numeric(p_value_corrected),
+    t_statistics = as.numeric(t_statistics)
+  )
+
+
+SWLS_heat =  ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) + plot_aes
+
+SWLS_heat
+```
+
+## Autonomy {.tabset}
+
+### Models
+
+```{r}
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/Audio_Only_autonomy_subscale.RDS")) {
+  Autonomy_subscale <- textTrainLists(
+    x = embeddings$texts$Autonomy, #use satifaction with life
+    y = df[2:9],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "Autonomy embeddings predicting PWB and SWLS, N = 144"
+  )
+   # Save the model output to an RDS file
+  saveRDS(Autonomy_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/Audio_Only_autonomy_subscale.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  Autonomy_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/well-being-prediction/models/prelim-analyses/Audio_Only_autonomy_subscale.RDS")
+}
+filtered_predictions <- na.omit(Autonomy_subscale$predictions[1:8])
+Autonomy_subscale_predictions <- as.data.frame(filtered_predictions)
+models <- c(colnames(Autonomy_subscale$predictions[1:8]))
+
+results = list()
+column_names = colnames(data)
+for (column_name in column_names) {
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = data,
+    predicted_values = Autonomy_subscale_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+Autonomy_rmse <- results %>%
+  bind_rows() %>%
+  distinct()
+}
+
+# Associate RMSE with subscale results
+Autonomy_subscale_results <- head(Autonomy_subscale$results, 8)
+Autonomy_subscale_results$RMSE <- Autonomy_rmse$RMSE
+
+table(Autonomy_subscale_results)
+
+
+Autonomy_subscale_results <- 
+  Autonomy_subscale_results %>%
+  mutate(
+    prompt = ifelse(grepl("Autonomy_", descriptions), "Autonomy", NA),
+    outcome = ifelse(grepl("embeddings\\$texts\\$Autonomy_", descriptions), 
+                     gsub(".*Autonomy_", "", descriptions),
+                     NA))
+
+```
+
+### Heatmaps 
+
+```{r audio-only-autonomy-heat}
+Autonomy_subscale_results <- Autonomy_subscale_results %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    df = as.numeric(df),
+    p_value = as.numeric(p_value),
+    p_value_corrected = as.numeric(p_value_corrected),
+    t_statistics = as.numeric(t_statistics)
+  )
+
+
+Autonomy_heat =  ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) + plot_aes
+
+Autonomy_heat
+```
+
+
+## All heatmaps (Audio only)
+
+```{r all-heat-audio-only}
+all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = T)
+
+all_heat +
+  ggtitle("Subscale Predictions (Audio Only)") +
+  plot_aes  +  
+  theme(
+    plot.title = element_text(hjust = 0.5, vjust = 1.5)
+  ) 
+```
+
+## Effects Plot
+
+```{r audio-only-effects}
+calculate_and_store_rmse <- function(result_list) {
+  results_list <- list()
+  
+  for (model_name in names(result_list)) {
+    # Extract the current result data frame from the list
+    current_result <- result_list[[model_name]]
+    
+    # Extract observed and predicted values
+    observed_values <- current_result$predictions$y
+    predicted_values <- current_result$predictions$predictions
+    
+    # Debugging: Print model name and lengths of vectors
+    cat("Model:", model_name, "\n")
+    cat("Length of observed_values:", length(observed_values), "\n")
+    cat("Length of predicted_values:", length(predicted_values), "\n")
+    
+    # Convert to numeric
+    observed_values <- as.numeric(observed_values)
+    predicted_values <- as.numeric(predicted_values)
+    
+    # Check for non-numeric values
+    if (any(is.na(observed_values)) || any(is.na(predicted_values))) {
+      warning(paste("Model", model_name, "contains non-numeric or NA values in observed or predicted data. Skipping this model."))
+      next
+    }
+    
+    # Check if lengths of observed and predicted values match
+    if (length(observed_values) != length(predicted_values)) {
+      warning(paste("Model", model_name, "has mismatched lengths for observed and predicted values. Skipping this model."))
+      next
+    }
+    
+    # Calculate RMSE
+    rmse_value <- Metrics::rmse(observed_values, predicted_values)
+    
+    # Create a data frame for the current result
+    result_df <- data.frame(
+      model = model_name,
+      RMSE = rmse_value,
+      stringsAsFactors = FALSE
+    )
+    
+    # Add the data frame to results_list
+    results_list[[model_name]] <- result_df
+  }
+  
+  # Combine individual data frames into a single data frame
+  final_results_df <- do.call(rbind, results_list)
+  
+  return(final_results_df)
+}
+
+# Initialize an empty list to store results
+results <- list()
+
+
+table <- function(correlation_data) {
+  # Convert the character columns to factors for better rendering
+  correlation_data$model <- as.factor(correlation_data$model)
+  correlation_data$method <- as.factor(correlation_data$method)
+  correlation_data$data.name <- as.factor(correlation_data$data.name)
+  correlation_data$alternative <- as.factor(correlation_data$alternative)
+
+  # Round the numeric columns to three decimal places
+  correlation_data$statistic <- round(as.numeric(correlation_data$statistic), 3)
+  correlation_data$parameter <- as.integer(correlation_data$parameter)
+  correlation_data$p.value <- sapply(correlation_data$p.value, function(p) {
+    ifelse(as.numeric(p) < 0.001, "< .001", 
+           ifelse(as.numeric(p) == 1, "1.000", 
+                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
+  })
+  correlation_data$r <- round(as.numeric(correlation_data$r), 3)
+  correlation_data$null.value <- round(as.numeric(correlation_data$null.value), 3)
+  correlation_data$conf.int_low <- round(as.numeric(correlation_data$conf.int_low), 3)
+  correlation_data$conf.int_high <- round(as.numeric(correlation_data$conf.int_high), 3)
+  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 3)
+
+  # Create the DataTable
+  datatable(correlation_data, extensions = 'FixedColumns', 
+            filter = list(position = 'top', clear = FALSE),
+            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+}
+
+
+####use this to create a df for the subscale 
+process_results <- function(result_list) {
+  results <- data.frame(
+    model = character(),
+    statistic = numeric(),
+    parameter = integer(),
+    p.value = numeric(),
+    r = numeric(),
+    null.value = numeric(),
+    alternative = character(),
+    method = character(),
+    data.name = character(),
+    conf.int_low = numeric(),
+    conf.int_high = numeric(),
+    stringsAsFactors = FALSE
+  )
+
+  for (model_name in names(result_list)) {
+    # Extract the relevant information from the current data frame
+    current_result <- result_list[[model_name]]
+    
+    # Create a data frame for the current result
+    result_df <- data.frame(
+      model = model_name,
+      statistic = current_result$statistic,
+      parameter = current_result$parameter,
+      p.value = current_result$p.value,
+      r = current_result$estimate,
+      null.value = current_result$null.value,
+      alternative = current_result$alternative,
+      method = current_result$method,
+      data.name = current_result$data.name,
+      conf.int_low = current_result$conf.int[1],
+      conf.int_high = current_result$conf.int[2]
+    )
+    
+    # Add the data frame to autonomy_results
+    results <- rbind(results, result_df)
+  }
+
+  return(results)
+}
+
+```
+
+
+```{r}
+#stitch together datasets... need to extract confidence intervals
+
+### Autonomy 
+result_list <- list(
+  autonomy_acceptance_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB self_acceptance`$results,
+  autonomy_autonomy_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB autonomy`$results,
+  autonomy_growth_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB personal_growth`$results,
+  autonomy_purpose_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB purpose`$results,
+  autonomy_relationships_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB positive_relations`$results,
+  autonomy_PWB_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB mean`$results,
+  autonomy_SWLS_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_SWLS mean`$results
+)
+
+autonomy_results <- process_results(result_list)
+
+
+autonomy_results<- 
+  autonomy_results %>%
+  mutate(
+    prompt = ifelse(grepl("autonomy_", model), "autonomy", NA),
+    outcome = ifelse(grepl("_sub", model), gsub(".*autonomy_", "", gsub("_sub", "", model)), NA))
+
+
+#### SWLA 
+
+result_list <- list(
+  SWLS_acceptance_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB self_acceptance`$results,
+  SWLS_autonomy_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB autonomy`$results,
+  SWLS_growth_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB personal_growth`$results,
+  SWLS_purpose_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB purpose`$results,
+  SWLS_relationships_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB positive_relations`$results,
+  SWLS_PWB_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB mean`$results,
+  SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_SWLS mean`$results
+)
+
+SWLS_results <- process_results(result_list)
+
+
+SWLS_results<- 
+  SWLS_results %>%
+  mutate(
+    prompt = ifelse(grepl("SWLS_", model), "SWLS", NA),
+    outcome = ifelse(grepl("_sub", model), gsub(".*SWLS_", "", gsub("_sub", "", model)), NA))
+
+
+### bind 
+
+audio_all_effects = rbind(autonomy_results,SWLS_results)
+
+### subset 
+
+audio_plot_data = audio_all_effects %>% 
+  select(prompt,outcome,r,p.value,conf.int_low,conf.int_high)
+
+palette = c("#ca6702","dodgerblue4")
+plot_aes = theme_minimal() +
+  theme(legend.position = "top",
+        legend.text = element_text(size = 8),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = 20))  # Center and increase title size)
+
+
+ggplot(audio_plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = conf.int_high, color = prompt, alpha = p.value < 0.05)) +
+  geom_pointrange(position = position_dodge(width = 0.6)) +
+  scale_color_manual(values = palette) +
+  scale_alpha_manual(values = c(0.4, 1), guide = FALSE) +  # Set alpha values
+  labs(title = "Satis. w/ Life & Autonomy Prompts (Audio Only) ",
+       x = "Pearson's Product Moment Correlation ",
+       y = "Psychological Outcome",
+       color = "Prompt Type") +
+  plot_aes + 
+  theme(axis.text.x = element_text(hjust = 1, size = 12)) +
+  scale_x_continuous(limits = c(-1, 1)) + 
+  facet_wrap(~prompt) +   
+  geom_vline(xintercept = 0, linetype = "dashed")
+
+
+```
+
+# Comparing methods
+
+```{r comparing-datasets, fig.height=8, fig.width=10}
+
+combined_data <- bind_rows(
+  audio_plot_data %>% mutate(dataset = 'audio'),
+  text_plot_data %>% mutate(dataset = 'text'),
+  plot_data %>% mutate(dataset = 'all data')
+)
+
+
+ggplot(combined_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = conf.int_high, color = prompt, alpha = p.value < 0.05, shape = dataset, linetype = dataset)) +
+  geom_pointrange(position = position_dodge(width = 0.4)) +
+  scale_color_manual(values = palette) +
+  scale_alpha_manual(values = c(0.4, 1), guide = FALSE) +  # Set alpha values
+  labs(title = "Satis. w/ Life & Autonomy Prompts",
+       x = "Pearson's Product Moment Correlation ",
+       y = "Psychological Outcome",
+       color = "Prompt Type") +
+  plot_aes + 
+  theme(axis.text.x = element_text(hjust = 1, size = 12)) +
+  scale_x_continuous(limits = c(-1, 1)) + 
+  facet_wrap(~prompt) +   
+  geom_vline(xintercept = 0, linetype = "dashed")
+
+```
+
