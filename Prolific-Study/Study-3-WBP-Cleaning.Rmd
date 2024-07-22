@@ -1,0 +1,416 @@
+---
+title: "Study 3: Proliifc LP2 Well-being Prediction"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE)
+options(scipen=999)
+```
+
+# load packages
+```{r}
+if(!require('pacman')) {
+	install.packages('pacman')
+}
+
+pacman::p_load(tidyverse, devtools, furrr, specr, knitr, kableExtra, psych,install = TRUE)
+
+#devtools::install_github("dcosme/specr", ref = "plotmods")
+
+if (!require(scorequaltrics)) {
+  devtools::install_github('dcosme/qualtrics', ref = "dev/enhance")
+}
+
+```
+
+# define aesthetics
+```{r}
+palette = c("#772e25", "#ee9b00", "#197278")
+plot_aes = theme_minimal() +
+  theme(legend.position = "top",
+        legend.text = element_text(size = 8),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
+        axis.ticks.y = element_blank())
+```
+
+
+# pull qualtrics data {.tabset}
+## define variables and paths
+
+To pull data from Qualtrics, you need a credentials file with an API token associated with your account. To create the file, follow these steps.
+
+1. Generate an API token for Qualtrics. Follow the steps outlined [here](https://www.qualtrics.com/support/integrations/api-integration/overview/).
+
+2. Save a Qualtrics credentials text file with the following format. In this example, the file is being saved as `~/credentials.yaml.PENN`. The `baseurl` is the URL for your institution on Qualtrics. Use `upenn.co1.qualtrics.com` for Penn Qualtrics.
+
+```
+token: oILNW6...[your qualtrics API token]
+baseurl: upenn.co1.qualtrics.com
+```
+
+`cred_file_location` = path to your Qualtrics credential file. 
+
+`survey_name_filter` = regular expression to filter the available surveys
+
+```{r}
+keep_columns = '(ResponseId|PROLIFIC_PID|order|Finished|Progress|no_consent|failed|)'
+cred_file_location = "/Users/stevenmesquiti/Desktop/LP2-within/LP2-text-prediction/LP2-text-prediction/credentials.yaml.PENN" #update with the path to your toke
+survey_name_filter = "LP2 well-being prediction PROLIFIC"
+ignore_items = "IPAddress|RecipientFirstName|RecipientLastName|RecipientEmail|ExternalReference|LocationLatitude|LocationLongitude"
+```
+
+## fetch qualtrics data
+The Qualtrics API is pretty finicky. If you get the following error, just rerun the `get_survey_data` command until it works:
+
+```
+Error in qualtrics_response_codes(f, raw = TRUE) : 
+  Qualtrics API complains that the requested resource cannot be found (404 error).
+Please check if you are using the correct survey ID.
+```
+
+```{r}
+if (!file.exists("../data/Prolific-well-being-prediction.rds")) {
+  # load credential file
+  credentials = scorequaltrics::creds_from_file(cred_file_location)
+  
+  # filter
+  surveysAvail = scorequaltrics::get_surveys()
+  surveysFiltered = filter(surveysAvail, grepl(survey_name_filter, name))
+  knitr::kable(arrange(select(surveysFiltered, name), name))
+  
+  # fetch data
+  surveys_long = scorequaltrics::get_survey_data(surveysFiltered,
+                                               credentials,
+                                               pid_col = keep_columns) %>%
+    gather(item, value, -c("survey_name", "ResponseId", "PROLIFIC_PID",
+                            "DistributionChannel", "Finished", "Progress", "no_consent"), 
+           -contains("failed"), -contains("Date"), -contains("Duration")) %>%
+    filter(!grepl(ignore_items, item)) #filter out identifiable data
+
+  saveRDS(surveys_long, "../data/Prolific-well-being-prediction.rds")
+} else {
+  surveys_long = readRDS("../data/Prolific-well-being-prediction.rds")
+}
+```
+
+```{r}
+###clean up the responses 
+
+surveys_tidy = surveys_long %>%
+  filter(!is.na(PROLIFIC_PID)) %>% # remove test responses
+  filter(nchar(PROLIFIC_PID) > 1) %>% # remove test responses
+  filter(!DistributionChannel == "Preview") %>% # remove incomplete responses
+  filter(!grepl("_DO_", item)) %>% # item orders
+  filter(!grepl("time_", item)) %>% # timers
+  filter(!grepl("Timer_", item)) %>% # timers
+  filter(!grepl("UserLanguage|Status", item)) %>%
+  filter(Progress >80) %>%
+  filter(RecordedDate >= "2024-07-16") # double filter out test cases
+
+### create IDs
+
+ids = surveys_tidy %>%
+  select(PROLIFIC_PID) %>%
+  unique() %>%
+  mutate(pID = sprintf("WBP%03d", row_number())) %>%
+  left_join(., unique(select(surveys_tidy, PROLIFIC_PID, ResponseId)))
+
+### attach IDs
+data = surveys_tidy %>%
+  left_join(., ids) 
+
+data_surveys = data %>%
+  filter(Finished == 1) %>%
+  filter(!is.na(value)) %>%
+  filter(!grepl("Click|Submit|Count|consent|screen|attention|therapy|age|race|ses_|income|practice|hispanic|feedback|first_gen|year|parental", item)) %>%
+  filter(grepl("SWLS|PWB|valence|personal|Autonomy|OE|reflection_useful_1|study_exp_helpful", item)) %>%
+  select(PROLIFIC_PID, pID,survey_name,item, value) 
+
+###can save this to get the item-level responses
+
+###extract the text data
+data_text = data_surveys %>% 
+  select(pID,item,value) %>% 
+  filter(grepl("-Text", item)) %>% 
+  rename(prompt = item,
+         text = value)
+
+```
+
+## Score the data 
+
+```{r}
+rubric_dir = here::here("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/code/scoring_rubrics")
+scoring_rubrics = data.frame(file = dir(file.path(rubric_dir), 
+                                        pattern = '*.csv',
+                                        full.names = TRUE))
+scoring_rubrics = scoring_rubrics %>% #filter only the rubrics we need
+filter(grepl("SWLS|PWB", file))
+# read in rubrics
+scoring_data_long = scorequaltrics::get_rubrics(scoring_rubrics, type = 'scoring')
+
+# score
+scored = scorequaltrics::score_questionnaire(data_surveys, scoring_data_long, SID = "pID", psych = FALSE) %>%
+  rename("pID" = SID) %>%
+  mutate(score = as.numeric(score),
+         measure = sprintf("%s %s", scale_name, scored_scale)) %>% 
+  filter(!method == "sum") %>%
+  group_by(measure) %>%
+  mutate(score_std = scale(score, center = TRUE, scale = TRUE))
+
+
+write.csv(scored,"/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/data/PROLIFIC_LP2_Wellbeing-Prediction_Behavioral.csv")
+```
+
+## Tidy Text Data
+
+```{r}
+
+#join behavioral and text data
+
+data = scored %>% 
+  right_join(data_text, by = "pID") 
+
+###join itemized tat 
+
+data_item = data_surveys %>% 
+  right_join(text, by = "pID") %>% 
+  spread(key = prompt, value = text)
+
+
+# Assuming your dataframe is named 'text'
+# Resolve duplicates by grouping and summarizing text values
+text_grouped <- data_text %>%
+  group_by(pID, prompt) %>%
+  summarize(
+    text_combined = paste(text, collapse = " "),
+    .groups = "drop"  # To avoid keeping group structure
+  )
+
+# Reshape data from long to wide format
+text_embed <- text_grouped %>%
+  spread(key = prompt, value = text_combined)
+
+
+
+df = scored %>% 
+  select(pID, score, measure) %>% 
+   spread(key = measure, value = score)
+
+
+data_final = df %>% 
+  right_join(text_embed, by = "pID")
+
+
+
+write.csv(data_final,"/Users/stevenmesquiti/Downloads/Prolific_wellbeing-prediction-text-long.csv")
+
+### write the helpful and usefulness data to a csv... 
+
+
+help_useful <- data_surveys %>%
+  select(pID, Reflection_Type, item, value) %>%
+  filter(grepl("study|reflection|OE", item)) %>%
+  group_by(pID, Reflection_Type, item) %>%
+  summarise(value = first(value)) %>% 
+  spread(key = item, value = value)  %>%
+  mutate(reflection_useful_1 = as.numeric(reflection_useful_1),
+         study_exp_helpful = as.numeric(study_exp_helpful))
+
+
+
+#write_csv(help_useful,"/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/WB_help_useful.csv")
+
+```
+
+### demos
+
+```{r}
+data_demo = data %>%
+  filter(Finished == 1) %>%
+  filter(!is.na(value)) %>%
+  filter(grepl("gender|age|race|ses-|income|practice|hispanic|feedback|first-|year|parental", item)) %>% 
+  filter(!grepl("Click|Submit|Count|consent|screen|attention|therapy|SWLS|PWB|valence|personal|Autonomy|OE|reflection_useful_1|study_exp_helpful|feedback", item)) %>%
+  select(PROLIFIC_PID, pID,survey_name,item, value) 
+
+
+
+data_demo = demo_study2 %>%
+  filter(!is.na(value)) %>%
+  filter(!grepl("state", item))
+
+### SES Ladder
+ses_subjective = data_demo %>%
+  filter(str_starts(item, "ses_subjective") & value == "On") %>% 
+  mutate(scale_name = "ses_subjective") %>% 
+    select(-value) %>%
+  rename("item" = scale_name,
+         "value" = item) %>% 
+  select(pID, survey_name,item,value) %>% 
+  mutate(value = str_replace(value, "ses_subjective_", ""))
+
+
+### Ethnicity
+
+ethnicity = data_demo %>%
+  filter(str_starts(item, "race_ethnicity") & !is.na(value)) %>%
+  mutate(item = dplyr::recode(item, 
+                              "race_ethnicity_1" = "American Indian or Alaska Native",
+                              "race_ethnicity_2" = "Black or African American",
+                              "race_ethnicity_3" = "East Asian",
+                              "race_ethnicity_4" = "Pacific Islander or Hawaiian Native",
+                              "race_ethnicity_5" = "South Asian",
+                              "race_ethnicity_6" = "Southeast Asian",
+                              "race_ethnicity_7" = "White",
+                              "race_ethnicity_8" = "Prefer not to say",
+                              "race_ethnicity_9" = "Racial/ethnic identity not listed"), item) %>% 
+  mutate(scale_name = "race_ethnicity") %>% 
+    select(-value) %>%
+  rename("item" = scale_name,
+         "value" = item) %>% 
+  select(pID, survey_name,item,value)
+  
+
+
+gender = data_demo %>%
+  filter(item == "gender" & !is.na(value)) %>%
+  mutate(value = dplyr::recode(value, "1" = "Man",
+                               "2" = "Woman",
+                               "3" = "Prefer not to say",
+                               "4" = "Non-binary",
+                               "5" = "Genderqueer",
+                               "6" = "Agender",
+                               "7" = "Gender fluid",
+                               "8" = "Gender identity not listed")) %>% 
+  select(-survey_name,-item) 
+
+
+demo = data_demo %>%
+  mutate(value = case_when(
+    grepl("gender", item) ~ dplyr::recode(value, 
+                                          "1" = "Man",
+                                          "2" = "Woman",
+                                          "3" = "Prefer not to say",
+                                          "4" = "Non-binary",
+                                          "5" = "Genderqueer",
+                                          "6" = "Agender",
+                                          "7" = "Gender fluid",
+                                          "8" = "Gender identity not listed"),
+    grepl("hispanic_latinx", item) ~ dplyr::recode(value, 
+                                                   "0" = "No", 
+                                                   "1" = "Yes",
+                                                   "2" = "Prefer not to say"),
+    grepl("transgender", item) ~ dplyr::recode(value, 
+                                               "1" = "Yes, man to woman",
+                                               "2" = "Yes, woman to man",
+                                               "3" = "Yes, man to non-binary",
+                                               "4" = "Yes, woman to non-binary",
+                                               "0" = "No"),
+    grepl("income", item) ~ dplyr::recode(value, 
+                                          "1" = "Less than $5,000",
+                                          "2" = "$5,000 through $11,999",
+                                          "3" = "$12,000 through $15,999",
+                                          "4" = "$16,000 through $24,999",
+                                          "5" = "$25,000 through $34,999",
+                                          "6" = "$35,000 through $49,999",
+                                          "7" = "$50,000 through $74,999",
+                                          "8" = "$75,000 through $99,999",
+                                          "9" = "$100,000 through $149,999",
+                                          "10" = "$150,000 and greater",
+                                          "11" = "Prefer not to say",
+                                          "12" = "NA"),
+    grepl("ses-edu", item) ~ dplyr::recode(value, 
+                                              "1" = "No formal education",
+                                              "2" = "Did not complete high school",
+                                              "3" = "High school graduate (diploma)",
+                                              "4" = "High school graduate (GED)",
+                                              "5" = "Some college (1-4 years, no degree)",
+                                              "6" = "Associate's degree (including occupational or academic degrees)",
+                                              "7" = "Bachelor's degree (BA, BS, etc)",
+                                              "8" = "Master's degree (MA, MS, MENG, MSW, etc)",
+                                              "9" = "Professional school degree (MD, DDC, JD, etc)",
+                                              "10" = "Doctorate degree (PhD, EdD, etc)"),
+    TRUE ~ value  # Default case to keep original value
+  )) %>% 
+  bind_rows(., ses_subjective, ethnicity) %>%
+  arrange(pID)
+
+
+
+data_demo_unique <- demo %>%
+  group_by(pID, item) %>%
+  summarise(value = paste(unique(value), collapse = ", "), .groups = "drop") %>% 
+  pivot_wider(names_from = item, values_from = value) %>% 
+  mutate(age = as.numeric(age),
+         gender = as.factor(gender),
+         hispanic_latinx = as.factor(hispanic_latinx),
+         race_ethnicity = as.factor(race_ethnicity),
+         transgender = as.factor(transgender),
+         `ses_degree` = as.factor(`ses-edu`),
+         `income` = as.factor(`income`))
+
+
+
+
+
+
+```
+
+```{r}
+get_demographics_stats <- function(data_demo) {
+  # Calculate statistics for age
+  age_stats <- list(
+    max = max(data_demo$age, na.rm = TRUE),
+    min = min(data_demo$age, na.rm = TRUE),
+    mean = mean(data_demo$age, na.rm = TRUE),
+    sd = sd(data_demo$age, na.rm = TRUE)
+  )
+  
+  # Function to calculate the percentage of each factor level
+  get_percentage <- function(column) {
+    table <- table(column)
+    percentage <- prop.table(table) * 100
+    return(as.data.frame(percentage))
+  }
+  
+  # Calculate the percentage of people in each factor level for the specified columns
+  first_gen_percentage <- get_percentage(data_demo$`first-gen`)
+  gender_percentage <- get_percentage(data_demo$gender)
+  hispanic_latinx_percentage <- get_percentage(data_demo$hispanic_latinx)
+  race_ethnicity_percentage <- get_percentage(data_demo$race_ethnicity)
+  year_college_percentage <- get_percentage(data_demo$`year-college`)
+  
+  # Create a list to store all results
+  results <- list(
+    age_stats = age_stats,
+    first_gen_percentage = first_gen_percentage,
+    gender_percentage = gender_percentage,
+    hispanic_latinx_percentage = hispanic_latinx_percentage,
+    race_ethnicity_percentage = race_ethnicity_percentage,
+    year_college_percentage = year_college_percentage
+  )
+  
+  return(results)
+}
+
+
+demographics_stats <- get_demographics_stats(data_demo_unique)
+print(demographics_stats)
+```
+

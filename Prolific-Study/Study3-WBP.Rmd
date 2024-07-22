@@ -1,0 +1,1631 @@
+---
+title: "Study 3 Well-being Prediction"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "Study3/fig")
+options(scipen=999)
+
+```
+
+
+```{r load packages and installize conda environment, include=FALSE}
+if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
+library(pacman)
+set.seed(123)
+
+#setwd("~/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/item_level_analyses")
+
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,rsample, purrr, tibble,install = T) 
+
+devtools::install_github("hadley/emo")
+
+# Set-up an environment with text-required python packages
+```
+
+```{r eval=FALSE, include=FALSE}
+library(text)
+textrpp_install()
+textrpp_initialize()
+
+```
+
+```{r}
+plot_aes = theme_minimal() +
+  theme(legend.position = "none",
+        text = element_text(family = "Futura Medium"),
+        axis.ticks.y = element_blank())
+```
+
+```{r define functions}
+calculate_and_store_rmse <- function(column_name, model_names, actual_values, predicted_values) {
+  results_list <- list()
+  
+  for (col_name in model_names) {
+    if (grepl(column_name, col_name)) {
+      rmse_value <- Metrics::rmse(actual_values[[column_name]], predicted_values[[col_name]])
+      results_list <- c(results_list, list(data.frame(Model = col_name, RMSE = rmse_value)))
+    }
+  }
+  
+  return(results_list)
+}
+
+# Initialize an empty list to store results
+results <- list()
+
+
+table <- function(correlation_data) {
+  # Convert the character columns to factors for better rendering
+  correlation_data$descriptions <- gsub("^Q[0-9]+\\.\\.(.+?)\\.\\.Transcription", "\\1", correlation_data$descriptions)
+  correlation_data$descriptions <- gsub("(\\d)_([A-Za-z])", "\\1~\\2", correlation_data$descriptions)
+  correlation_data$descriptions <- as.factor(correlation_data$descriptions)
+  correlation_data$alternative <- as.factor(correlation_data$alternative)
+
+  # Round the numeric columns to three decimal places
+  correlation_data$correlation <- round(as.numeric(correlation_data$correlation), 2)
+  correlation_data$t_statistics <- round(as.numeric(correlation_data$t_statistics), 3)
+  correlation_data$p_value <- sapply(correlation_data$p_value, function(p) {
+    ifelse(as.numeric(p) < 0.001, "< .001", 
+           ifelse(as.numeric(p) == 1, "1.000", 
+                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
+  })
+  
+  # Apply similar formatting to the p_value_corrected column
+  correlation_data$p_value_corrected <- sapply(correlation_data$p_value_corrected, function(p) {
+    ifelse(as.numeric(p) < 0.001, "< .001", 
+           ifelse(as.numeric(p) == 1, "1.000", 
+                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
+  })
+
+  # Add the RMSE column
+  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 2)
+
+  # Create the DataTable
+  datatable(correlation_data, extensions = 'FixedColumns', 
+            filter = list(position = 'top', clear = FALSE),
+            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+}
+
+
+
+```
+
+```{r load-data}
+df <- read_csv("/Users/stevenmesquiti/Downloads/Prolific_wellbeing-prediction-text-long.csv")
+
+
+embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/embeddings/Study3-WBP-embeddings.rds")
+```
+
+
+# Question 1
+
+> Can language‑based assessments of participants’ well-being predict components of self-reported well-being? 
+
+**Hypothesis:** Based on past research (e.g., Kjell et al., 2022), we hypothesize that linguistic analyses of participants’ written responses to open-ended questions about two components of well-being—life satisfaction and autonomy—will provide accurate predictions of self-reported ratings of these components. 
+
+**Findings**:`r emo::ji("check")` Linguistic analyses of participants’ written responses to open-ended questions about two components of well-being—life satisfaction and autonomy— **do provide accurate predictions** of self-reported ratings of these components. 
+
+
+## Satisfaction with Life {.tabset}
+
+### Models {.tabset}
+
+```{r}
+
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/Study3/SWLS_subscale.RDS")) {
+  SWLS_subscale <- textTrainLists(
+    x = embeddings$texts$`SWLS-Text`, #use satifaction with life
+    y = df[3:10],#variables of interest are in columns 3-10
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "SWLS embeddings Well-being, N = 285"
+  )
+   # Save the model output to an RDS file
+  saveRDS(SWLS_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/Study3/SWLS_subscale.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  SWLS_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/Study3/SWLS_subscale.RDS")
+}
+
+
+filtered_predictions <- na.omit(SWLS_subscale$predictions[1:8])
+SWLS_subscale_predictions <- as.data.frame(filtered_predictions)
+models <- c(colnames(SWLS_subscale$predictions[1:8]))
+
+
+###prep the data to calculate RMSE values 
+
+data = df %>% 
+  select(3:10) 
+
+
+
+results = list()
+column_names = colnames(data)
+for (column_name in column_names) {
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = data,
+    predicted_values = SWLS_subscale_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+SWLS_rmse <- results %>%
+  bind_rows() %>%
+  distinct()
+}
+
+# Associate RMSE with subscale results
+SWLS_subscale_results <- head(SWLS_subscale$results, 8)
+SWLS_subscale_results$RMSE <- SWLS_rmse$RMSE
+
+
+###extract information for heatmap
+SWLS_subscale_results <- 
+  SWLS_subscale_results %>%
+  mutate(
+    prompt = ifelse(grepl("SWLS", descriptions), "SWLS", NA),
+    outcome = ifelse(grepl("embeddings\\$texts\\$`SWLS-Text`_", descriptions), 
+                     gsub(".*`SWLS-Text`_", "", descriptions),
+                     NA))
+
+table(SWLS_subscale_results)
+```
+
+### Heatmaps
+
+```{r SWLS-heat}
+
+SWLS_subscale_results <- SWLS_subscale_results %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    df = as.numeric(df),
+    p_value = as.numeric(p_value),
+    p_value_corrected = as.numeric(p_value_corrected),
+    t_statistics = as.numeric(t_statistics)
+  )
+
+
+SWLS_heat =  ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) + plot_aes
+
+SWLS_heat
+```
+
+
+## Autonomy {.tabset}
+
+### Models
+
+```{r}
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/Study3/autonomy_subscale.RDS")) {
+  Autonomy_subscale <- textTrainLists(
+    x = embeddings$texts$`Autonomy-Text`, #use satifaction with life
+    y = df[3:10],
+    force_train_method = "regression",
+    save_output = "all",
+    method_cor = "pearson",
+    eval_measure = "rmse",
+    p_adjust_method = "fdr",
+    model_description = "Autonomy embeddings well-being, N = 285"
+  )
+   # Save the model output to an RDS file
+  saveRDS(Autonomy_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/Study3/autonomy_subscale.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  Autonomy_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/Study3/autonomy_subscale.RDS")
+}
+filtered_predictions <- na.omit(Autonomy_subscale$predictions[1:8])
+Autonomy_subscale_predictions <- as.data.frame(filtered_predictions)
+models <- c(colnames(Autonomy_subscale$predictions[1:8]))
+
+results = list()
+column_names = colnames(data)
+for (column_name in column_names) {
+  result <- calculate_and_store_rmse(
+    column_name = column_name,
+    model_names = models,
+    actual_values = data,
+    predicted_values = Autonomy_subscale_predictions
+  )
+  results <- c(results, result)
+  # Convert the results list to a data frame
+Autonomy_rmse <- results %>%
+  bind_rows() %>%
+  distinct()
+}
+
+# Associate RMSE with subscale results
+Autonomy_subscale_results <- head(Autonomy_subscale$results, 8)
+Autonomy_subscale_results$RMSE <- Autonomy_rmse$RMSE
+
+
+
+
+Autonomy_subscale_results <- 
+  Autonomy_subscale_results %>%
+  mutate(
+    prompt = ifelse(grepl("Autonomy-", descriptions), "Autonomy", NA),
+    outcome = ifelse(grepl("embeddings\\$texts\\$`Autonomy-Text`_", descriptions), 
+                     gsub(".*`Autonomy-Text`_", "", descriptions),
+                     NA)
+  )
+table(Autonomy_subscale_results)
+```
+
+### Heatmaps 
+
+```{r Autonomy-heat}
+Autonomy_subscale_results <- Autonomy_subscale_results %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    df = as.numeric(df),
+    p_value = as.numeric(p_value),
+    p_value_corrected = as.numeric(p_value_corrected),
+    t_statistics = as.numeric(t_statistics)
+  )
+
+
+Autonomy_heat =  ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) +
+    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
+              color = "black", size = 4, vjust = -0.5) + plot_aes
+
+Autonomy_heat
+```
+
+
+## All heatmaps (all data)
+
+```{r all-heat}
+all_heat = ggarrange(Autonomy_heat, SWLS_heat, ncol = 2,nrow = 1, common.legend = T)
+
+all_heat +
+  ggtitle("Subscale Predictions") +
+  labs(caption = "Note: N = 285; FDR-corrected p-values displayed") +
+  plot_aes  +  
+  theme(
+    plot.title = element_text(hjust = 0.5, vjust = 1.5),
+    plot.caption = element_text(hjust = 1, size = 10)
+  ) 
+```
+
+
+## Effects Plot
+
+```{r functions}
+calculate_and_store_rmse <- function(result_list) {
+  results_list <- list()
+  
+  for (model_name in names(result_list)) {
+    # Extract the current result data frame from the list
+    current_result <- result_list[[model_name]]
+    
+    # Extract observed and predicted values
+    observed_values <- current_result$predictions$y
+    predicted_values <- current_result$predictions$predictions
+    
+    # Debugging: Print model name and lengths of vectors
+    cat("Model:", model_name, "\n")
+    cat("Length of observed_values:", length(observed_values), "\n")
+    cat("Length of predicted_values:", length(predicted_values), "\n")
+    
+    # Convert to numeric
+    observed_values <- as.numeric(observed_values)
+    predicted_values <- as.numeric(predicted_values)
+    
+    # Check for non-numeric values
+    if (any(is.na(observed_values)) || any(is.na(predicted_values))) {
+      warning(paste("Model", model_name, "contains non-numeric or NA values in observed or predicted data. Skipping this model."))
+      next
+    }
+    
+    # Check if lengths of observed and predicted values match
+    if (length(observed_values) != length(predicted_values)) {
+      warning(paste("Model", model_name, "has mismatched lengths for observed and predicted values. Skipping this model."))
+      next
+    }
+    
+    # Calculate RMSE
+    rmse_value <- Metrics::rmse(observed_values, predicted_values)
+    
+    # Create a data frame for the current result
+    result_df <- data.frame(
+      model = model_name,
+      RMSE = rmse_value,
+      stringsAsFactors = FALSE
+    )
+    
+    # Add the data frame to results_list
+    results_list[[model_name]] <- result_df
+  }
+  
+  # Combine individual data frames into a single data frame
+  final_results_df <- do.call(rbind, results_list)
+  
+  return(final_results_df)
+}
+
+# Initialize an empty list to store results
+results <- list()
+
+
+table <- function(correlation_data) {
+  # Convert the character columns to factors for better rendering
+  correlation_data$model <- as.factor(correlation_data$model)
+  correlation_data$method <- as.factor(correlation_data$method)
+  correlation_data$data.name <- as.factor(correlation_data$data.name)
+  correlation_data$alternative <- as.factor(correlation_data$alternative)
+
+  # Round the numeric columns to three decimal places
+  correlation_data$statistic <- round(as.numeric(correlation_data$statistic), 3)
+  correlation_data$parameter <- as.integer(correlation_data$parameter)
+  correlation_data$p.value <- sapply(correlation_data$p.value, function(p) {
+    ifelse(as.numeric(p) < 0.001, "< .001", 
+           ifelse(as.numeric(p) == 1, "1.000", 
+                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
+  })
+  correlation_data$r <- round(as.numeric(correlation_data$r), 3)
+  correlation_data$null.value <- round(as.numeric(correlation_data$null.value), 3)
+  correlation_data$conf.int_low <- round(as.numeric(correlation_data$conf.int_low), 3)
+  correlation_data$conf.int_high <- round(as.numeric(correlation_data$conf.int_high), 3)
+  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 3)
+
+  # Create the DataTable
+  datatable(correlation_data, extensions = 'FixedColumns', 
+            filter = list(position = 'top', clear = FALSE),
+            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+}
+
+
+####use this to create a df for the subscale 
+process_results <- function(result_list) {
+  results <- data.frame(
+    model = character(),
+    statistic = numeric(),
+    parameter = integer(),
+    p.value = numeric(),
+    r = numeric(),
+    null.value = numeric(),
+    alternative = character(),
+    method = character(),
+    data.name = character(),
+    conf.int_low = numeric(),
+    conf.int_high = numeric(),
+    stringsAsFactors = FALSE
+  )
+
+  for (model_name in names(result_list)) {
+    # Extract the relevant information from the current data frame
+    current_result <- result_list[[model_name]]
+    
+    # Create a data frame for the current result
+    result_df <- data.frame(
+      model = model_name,
+      statistic = current_result$statistic,
+      parameter = current_result$parameter,
+      p.value = current_result$p.value,
+      r = current_result$estimate,
+      null.value = current_result$null.value,
+      alternative = current_result$alternative,
+      method = current_result$method,
+      data.name = current_result$data.name,
+      conf.int_low = current_result$conf.int[1],
+      conf.int_high = current_result$conf.int[2]
+    )
+    
+    # Add the data frame to autonomy_results
+    results <- rbind(results, result_df)
+  }
+
+  return(results)
+}
+
+```
+
+
+```{r}
+#stitch together datasets... need to extract confidence intervals
+
+### Autonomy 
+result_list <- list(
+  autonomy_acceptance_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB self_acceptance`$results,
+  autonomy_autonomy_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB autonomy`$results,
+  autonomy_growth_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB personal_growth`$results,
+  autonomy_purpose_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB purpose`$results,
+  autonomy_relationships_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB positive_relations`$results,
+  autonomy_PWB_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB mean`$results,
+  autonomy_SWLS_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_SWLS mean`$results
+)
+
+autonomy_results <- process_results(result_list)
+
+
+autonomy_results<- 
+  autonomy_results %>%
+  mutate(
+    prompt = ifelse(grepl("autonomy_", model), "autonomy", NA),
+    outcome = ifelse(grepl("_sub", model), gsub(".*autonomy_", "", gsub("_sub", "", model)), NA))
+
+
+#### SWLA
+
+result_list <- list(
+  SWLS_acceptance_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB self_acceptance`$results,
+  SWLS_autonomy_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB autonomy`$results,
+  SWLS_growth_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB personal_growth`$results,
+  SWLS_purpose_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB purpose`$results,
+  SWLS_relationships_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB positive_relations`$results,
+  SWLS_PWB_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB mean`$results,
+  SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_SWLS mean`$results
+)
+
+SWLS_results <- process_results(result_list)
+
+
+SWLS_results<- 
+  SWLS_results %>%
+  mutate(
+    prompt = ifelse(grepl("SWLS_", model), "SWLS", NA),
+    outcome = ifelse(grepl("_sub", model), gsub(".*SWLS_", "", gsub("_sub", "", model)), NA))
+
+
+### bind 
+
+all_effects = rbind(autonomy_results,SWLS_results)
+
+### subset 
+
+plot_data = all_effects %>% 
+  select(prompt,outcome,r,p.value,conf.int_low,conf.int_high)
+
+palette = c("#772e25","#6195C6", "#ADA7C9")
+plot_aes = theme_minimal() +
+  theme(legend.position = "top",
+        legend.text = element_text(size = 8),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = 20))  # Center and increase title size)
+
+
+ggplot(plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = conf.int_high, color = prompt, alpha = p.value < 0.05)) +
+  geom_pointrange(position = position_dodge(width = 0.6)) +
+  scale_color_manual(values = palette) +
+  scale_alpha_manual(values = c(0.2, 1), guide = FALSE) +  # Set alpha values
+  labs(title = "Well-being Prediction (Prolific Study)",
+       x = "Pearson's Product Moment Correlation ",
+       y = "Well-being Outcome",
+       color = "Prompt Type") +
+  plot_aes + 
+  theme(axis.text.x = element_text(hjust = 1, size = 12)) +
+  scale_x_continuous(limits = c(-1, 1)) + 
+  facet_wrap(~prompt) +   
+  geom_vline(xintercept = 0, linetype = "dashed")
+
+
+```
+
+# Question 2 
+
+```{r bootstrapping function}
+# Function to calculate correlation in a bootstrap sample
+corr_on_bootstrap <- function(split) {
+  cor(analysis(split)[[1]], analysis(split)[[2]])
+}
+```
+
+> To what degree can language‑based assessments of participants’ well-being generalize to other components (e.g., psychological well-being, life satisfaction) of well-being? 
+
+**Hypothesis:**  Based on the past literature (e.g., Gallagher et al., 2009), which has found that the components that support the structure of hedonic and eudaimonic well-being are correlated, we predict that language‑based assessments of participants’ well-being should generalize to other components of well-being (e.g., Satisfaction with Life and Psychological Well-being). However, language assessments should be able to differentiate between components (e.g., the measure should have noticeably lower correlations with measures from which it theoretically differs).
+
+**Findings:** `r emo::ji("check")` Results showed that language‑based assessments of participants’ well-being should generalize to other components of well-being.
+
+`r emo::ji("x")` However, we failed to see consistent evidence that language‑based assessments of participants’ well-being could differentiate between components with which they theoretically differed.
+
+
+```{r}
+# Load predictions for both models
+model1_predictions = SWLS_subscale
+model2_predictions = SWLS_subscale
+```
+
+# Can SWL language assessments can differentiate SWL from... {.tabset}
+
+**Notes**
+
+> The orange distrubtions represent 95% of the distribution. if the distribution crosses zero, there is not sufficient evidence that that the language assessment of well-being can differentiate between the two components of well-being.
+
+
+## Psychological Well-being
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`SWLS mean`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_SWLS mean_pred`
+y_model2 <- df$`PWB mean`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_PWB mean_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 -  model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+
+```
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> Satisfaction with life responses can  distinguish Satisfaction with Life scores from Psychological Well-being scores (r = 0.624 verus 0.403, bootstrapped **p** < .05)
+
+## Autonomy
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`SWLS mean`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_SWLS mean_pred`
+y_model2 <- df$`PWB autonomy`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_PWB autonomy_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+```
+
+
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> SWLS responses cannot differentiate between Satisfaction with life and autonomy responses (r = 0.624 verus 0.131, bootstrapped **p** > 0.05)
+
+## Personal Growth 
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`SWLS mean`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_SWLS mean_pred`
+y_model2 <- df$`PWB personal_growth`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_PWB personal_growth_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+```
+
+
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> SWLS responses cannot differentiate between Satisfaction with life and personal growth responses (r = 0.624 verus 0.117, bootstrapped **p** > 0.05) 
+
+## Positive Relationships 
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`SWLS mean`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_SWLS mean_pred`
+y_model2 <- df$`PWB positive_relations`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_PWB positive_relations_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+```
+
+
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> SWLS responses cannot differentiate between Satisfaction with life and positive relationship responses (r = 0.624 verus 0.153, bootstrapped **p** > 0.05)
+
+## Purpose
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`SWLS mean`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_SWLS mean_pred`
+y_model2 <- df$`PWB purpose`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_PWB purpose_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+```
+
+
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> SWLS responses cannot differentiate between Satisfaction with life and purpose in life (r = 0.624 verus 0.224, bootstrapped **p** > 0.05)
+
+## Self-Acceptance
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`SWLS mean`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_SWLS mean_pred`
+y_model2 <- df$`PWB self_acceptance`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_PWB self_acceptance_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+```
+
+
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> Satisfaction with Life responses cannot distinguish Satisfaction with Life scores from Self-Acceptance scores (r = 0.624 verus 0.501, bootstrapped **p** > 0.05)
+
+## Environmental Mastery
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`SWLS mean`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_SWLS mean_pred`
+y_model2 <- df$`PWB environmental_mastery`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`SWLS-Text\`_PWB environmental_mastery_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+
+
+```
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> Satisfaction with life responses cannot distinguish satisfaction with life scores from Environmental Mastery scores (r = 0.624 verus 0.44, bootstrapped **p** > 0.05)
+
+# Testing if Autonomy language assessments can Differentiate Autonomy from... {.tabset}
+
+```{r}
+# Load predictions for both models
+model1_predictions = Autonomy_subscale
+model2_predictions = Autonomy_subscale
+```
+
+## Self-Acceptance 
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`PWB autonomy`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB autonomy_pred`
+
+
+y_model2 <- df$`PWB self_acceptance`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB self_acceptance_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+```
+
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> Autonomy responses cannot distinguish Autonomy scores from self-acceptance scores (r = 0.413 verus 0.175, bootstrapped **p** > 0.05)
+
+## Positive Relationships 
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`PWB autonomy`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB autonomy_pred`
+y_model2 <- df$`PWB positive_relations`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB positive_relations_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+```
+
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> Autonomy responses cannot distinguish Autonomy scores from Positive Relationship scores (r = 0.413 verus 0.019, bootstrapped **p** > 0.05)
+
+## Environmental Mastery 
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`PWB autonomy`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB autonomy_pred`
+y_model2 <- df$`PWB environmental_mastery`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB environmental_mastery_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+```
+
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> Autonomy responses cannot distinguish Autonomy scores from environmental mastery scores (r = 0.413 verus 0.17, bootstrapped **p** > 0.05)
+
+## Personal Growth
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`PWB autonomy`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB autonomy_pred`
+y_model2 <- df$`PWB personal_growth`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB personal_growth_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+```
+
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> Autonomy responses cannot distinguish Autonomy scores from personal growth scores (r = 0.413 verus 0.06, bootstrapped **p** > 0.05)
+
+## Purpose
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`PWB autonomy`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB autonomy_pred`
+y_model2 <- df$`PWB purpose`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB purpose_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+```
+
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> Autonomy responses cannot distinguish Autonomy scores from purpose in life scores (r = 0.413 verus 0.032, bootstrapped **p** > 0.05)
+
+## Psychological Well-being
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`PWB autonomy`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB autonomy_pred`
+y_model2 <- df$`PWB mean`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB mean_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+```
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> Autonomy responses cannot distinguish Autonomy scores from Psychological Well-being scores (r = 0.413 verus 0.106, bootstrapped **p** > 0.05)
+
+## Satisfaction with Life
+
+```{r}
+# Extract actual values and predictions for both models
+y_model1 <- df$`PWB autonomy`
+yhat_model1 <- model1_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_PWB autonomy_pred`
+y_model2 <- df$`SWLS mean`
+yhat_model2 <- model2_predictions$predictions$`embeddings$texts$\`Autonomy-Text\`_SWLS mean_pred`
+
+# Create data frame for Model 1
+model1_df <- tibble::tibble(y_model1, yhat_model1)
+
+# Break the association by shuffling the predicted values
+model1_df_shuffled <- model1_df %>% mutate(yhat_model1 = sample(yhat_model1))
+
+# Perform bootstrapping on the shuffled data
+model1_boots_shuffled <- rsample::bootstraps(model1_df_shuffled, times = 10000, apparent = FALSE)
+model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
+  mutate(corr_model1 = map(splits, corr_on_bootstrap))
+
+model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
+  unnest(corr_model1) %>%
+  select(corr_model1)
+
+# Create data frame for Model 2
+model2_df <- tibble::tibble(y_model2, yhat_model2)
+
+# Break the association by shuffling the predicted values
+model2_df_shuffled <- model2_df %>% mutate(yhat_model2 = sample(yhat_model2))
+
+# Perform bootstrapping on the shuffled data
+model2_boots_shuffled <- rsample::bootstraps(model2_df_shuffled, times = 10000, apparent = FALSE)
+model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
+  mutate(corr_model2 = map(splits, corr_on_bootstrap))
+model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
+  unnest(corr_model2) %>%
+  select(corr_model2)
+
+# Combine the distributions
+comparison_df_shuffled <- tibble::tibble(
+  correlation_difference = model1_boot_distribution_shuffled$corr_model1 - model2_boot_distribution_shuffled$corr_model2
+)
+
+# Calculate percentage of absolute differences greater than zero
+percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+
+```
+
+```{r}
+# Calculate the quantiles
+lower_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.025)
+upper_bound <- quantile(comparison_df_shuffled$correlation_difference, 0.975)
+
+# Calculate the mean difference for the vertical line
+mean_diff <- mean(comparison_df_shuffled$correlation_difference)
+
+# Create the plot
+ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
+  geom_density(color = "black", fill = "skyblue", alpha = 0.2) +
+  geom_vline(xintercept = 0, color = "red", linetype = "solid", size = 0.5) +
+  geom_ribbon(stat = "density", aes(ymin = 0, ymax = ..density..), 
+              fill = "orange", alpha = 0.7, 
+              data = comparison_df_shuffled[comparison_df_shuffled$correlation_difference >= lower_bound & comparison_df_shuffled$correlation_difference <= upper_bound, ]) +
+  labs(title = "Distribution of Correlation Differences",
+       x = "Correlation Difference",
+       y = "Density") +
+  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
+  plot_aes
+```
+
+> Autonomy responses can marginally distinguish Autonomy scores from Satisfaction with Life scores (r = 0.413 verus 0.207, bootstrapped **p** > 0.05)
