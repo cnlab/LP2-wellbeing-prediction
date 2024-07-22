@@ -1,5 +1,5 @@
 ---
-title: "Cotent-Word-Subscale-level-Prediction"
+title: "WBP Study 1: LP2-Subscale-level-Prediction"
 author: ""
 date: "`r Sys.Date()`"
 output:
@@ -18,7 +18,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "content_word/subscale_")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "item_level/subscale_")
 options(scipen=999)
 ```
 
@@ -26,10 +26,11 @@ options(scipen=999)
 ```{r load packages and installize conda environment, include=FALSE}
 if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
 library(pacman)
-setwd("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/models")
+#setwd("~/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/models")
 
 
-pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,Rtsne,install = T) 
+
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr,DT,stringr,ggwordcloud,Metrics,Rtsne,text,install = T) 
 # Set-up an environment with text-required python packages
 ```
 
@@ -43,7 +44,7 @@ textrpp_initialize()
 ```{r}
 plot_aes = theme_minimal() +
   theme(legend.position = "top",
-        legend.text = element_text(size = 4),
+        legend.text = element_text(size = 6),
         text = element_text(size = 12, family = "Futura Medium"),
         axis.text = element_text(color = "black"),
         axis.ticks.y = element_blank())
@@ -162,9 +163,9 @@ process_results <- function(result_list) {
 # load data
 
 ```{r load-data}
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/surveys_scored/LP2_transcriptions_behavioral.csv")
+df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv")
 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/embeddings/Content_word_embeddings.rds")
+embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/embeddings/study_1/all_embeddings.rds")
 ```
 
 # Subscale Predicition {.tabset}
@@ -173,9 +174,9 @@ embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/
 
 ```{r}
 # load in all the RDS objects
-if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/autonomy/autonomy_subscale_df.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/autonomy/autonomy_subscale_df.RDS")) {
 
-autonomy_path <- "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/autonomy"
+autonomy_path <- "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/autonomy"
 
 
 # List all files in the directory with the .RDS extension
@@ -196,28 +197,27 @@ for (autonomy_path in rds_files) {
 
 # Example usage:
 result_list <- list(
-  autonomy_acceptance_sub = autonomy_acceptance_content_sub$results,
-  autonomy_autonomy_sub = autonomy_autonomy_content_sub$results,
-  autonomy_growth_sub = autonomy_growth_content_sub$results,
-  autonomy_purpose_sub = autonomy_purpose_content_sub$results,
-  autonomy_relationships_sub = autonomy_relationships_content_sub$results,
-  autonomy_PWB_sub = autonomy_PWB_content_sub$results,
-  autonomy_SWLS_sub = autonomy_SWLS_content_sub$results
+  autonomy_acceptance_sub = autonomy_acceptance_sub$results,
+  autonomy_autonomy_sub = autonomy_autonomy_sub$results,
+  autonomy_growth_sub = autonomy_growth_sub$results,
+  autonomy_purpose_sub = autonomy_purpose_sub$results,
+  autonomy_relationships_sub = autonomy_relationships_sub$results,
+  autonomy_PWB_sub = autonomy_PWB_sub$results,
+  autonomy_SWLS_sub = autonomy_SWLS_sub$results
 )
 
 autonomy_results <- process_results(result_list)
 
 #calculate RMSE 
 
-# Example usage:
 result_list <- list(
-  autonomy_acceptance_sub = autonomy_acceptance_content_sub,
-  autonomy_autonomy_sub = autonomy_autonomy_content_sub,
-  autonomy_growth_sub = autonomy_growth_content_sub,
-  autonomy_purpose_sub = autonomy_purpose_content_sub,
-  autonomy_relationships_sub = autonomy_relationships_content_sub,
-  autonomy_PWB_sub = autonomy_PWB_content_sub,
-  autonomy_SWLS_sub = autonomy_SWLS_content_sub
+  autonomy_acceptance_sub = autonomy_acceptance_sub,
+  autonomy_autonomy_sub = autonomy_autonomy_sub,
+  autonomy_growth_sub = autonomy_growth_sub,
+  autonomy_purpose_sub = autonomy_purpose_sub,
+  autonomy_relationships_sub = autonomy_relationships_sub,
+  autonomy_PWB_sub = autonomy_PWB_sub,
+  autonomy_SWLS_sub = autonomy_SWLS_sub
 )
 
 # Calculate and store RMSE
@@ -232,12 +232,11 @@ autonomy_results<-
 
 
 # Save the model output to an RDS file
-  saveRDS(autonomy_results, "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/autonomy/autonomy_subscale_df.RDS")
+  saveRDS(autonomy_results, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/autonomy/autonomy_subscale_df.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  autonomy_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/autonomy/autonomy_subscale_df.RDS")
+  autonomy_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/autonomy/autonomy_subscale_df.RDS")
 }
-
 
 ```
 
@@ -258,9 +257,9 @@ autonomy_heat <- ggplot(autonomy_results, aes(x = prompt, y = outcome, fill = r)
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
 
-  scale_fill_gradient2(low = "#c44536",
+  scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
-                       high = "#4EEB53") +
+                       high = "#c44536") +
     geom_text(data = subset(autonomy_results, p.value < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
               color = "black", size = 4, vjust = -0.5) +
     geom_text(data = subset(autonomy_results, p.value < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
@@ -275,9 +274,9 @@ autonomy_heat
 ## Acceptance {.tabset}
 
 ```{r}
-if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/acceptance/acceptance_subscale_df.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/acceptance/acceptance_subscale_df.RDS")) {
 
-acceptance_path <- "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/acceptance"
+acceptance_path <- "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/acceptance"
 
 
 # List all files in the directory with the .RDS extension
@@ -297,26 +296,26 @@ for (acceptance_path in rds_files) {
 }
 
 result_list <- list(
-  accept_acceptance_sub = accept_acceptance_content_sub$results,
-  accept_autonomy_sub = accept_autonomy_content_sub$results,
-  accept_growth_sub = accept_growth_content_sub$results,
-  accept_purpose_sub = accept_purpose_content_sub$results,
-  accept_relationships_sub = accept_relationships_content_sub$results,
-  accept_PWB_sub = accept_PWB_content_sub$results,
-  accept_SWLS_sub = accept_SWLS_content_sub$results
+  accept_acceptance_sub = accept_acceptance_sub$results,
+  accept_autonomy_sub = accept_autonomy_sub$results,
+  accept_growth_sub = accept_growth_sub$results,
+  accept_purpose_sub = accept_purpose_sub$results,
+  accept_relationships_sub = accept_relationships_sub$results,
+  accept_PWB_sub = accept_PWB_sub$results,
+  accept_SWLS_sub = accept_SWLS_sub$results
 )
 accept_results <- process_results(result_list)
 
 
 
 result_list <- list(
-accept_acceptance_sub = accept_acceptance_content_sub,
-  accept_autonomy_sub = accept_autonomy_content_sub,
-  accept_growth_sub = accept_growth_content_sub,
-  accept_purpose_sub = accept_purpose_content_sub,
-  accept_relationships_sub = accept_relationships_content_sub,
-  accept_PWB_sub = accept_PWB_content_sub,
-  accept_SWLS_sub = accept_SWLS_content_sub)
+accept_acceptance_sub = accept_acceptance_sub,
+  accept_autonomy_sub = accept_autonomy_sub,
+  accept_growth_sub = accept_growth_sub,
+  accept_purpose_sub = accept_purpose_sub,
+  accept_relationships_sub = accept_relationships_sub,
+  accept_PWB_sub = accept_PWB_sub,
+  accept_SWLS_sub = accept_SWLS_sub)
 
 # Calculate and store RMSE
 accept_RMSE <- calculate_and_store_rmse(result_list)
@@ -328,10 +327,10 @@ accept_results<- accept_results %>%
     outcome = ifelse(grepl("_sub", model), gsub(".*accept_", "", gsub("_sub", "", model)), NA))
 
 # Save the model output to an RDS file
-  saveRDS(accept_results, "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/acceptance/acceptance_subscale_df.RDS")
+  saveRDS(accept_results, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/acceptance/acceptance_subscale_df.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  accept_results <- readRDS("//Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/acceptance/acceptance_subscale_df.RDS")
+  accept_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/acceptance/acceptance_subscale_df.RDS")
 }
 
 ```
@@ -351,9 +350,9 @@ accept_heat <- ggplot(accept_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-  scale_fill_gradient2(low = "#c44536",
+  scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
-                       high = "#4EEB53") +
+                       high = "#c44536") +
     geom_text(data = subset(accept_results, p.value < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
               color = "black", size = 4, vjust = -0.5) +
     geom_text(data = subset(accept_results, p.value < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
@@ -369,11 +368,11 @@ accept_heat
 ### Models {.tabset}
 
 ```{r}
-if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/pos-affect/affect_results.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/affect/affect_results.RDS")) {
 
 
 
-affect_path <- "//Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/pos-affect"
+affect_path <- "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/affect"
 
 
 # List all files in the directory with the .RDS extension
@@ -395,26 +394,26 @@ for (affect_path in rds_files) {
 
 # Example usage:
 result_list <- list(
-  affect_acceptance_sub = affect_acceptance_content_sub$results,
-  affect_autonomy_sub =affect_autonomy_content_sub$results,
-  affect_growth_sub = affect_growth_content_sub$results,
-  affect_purpose_sub = affect_purpose_content_sub$results,
-  affect_relationships_sub = affect_relationships_content_sub$results,
-  affect_PWB_sub = affect_PWB_content_sub$results,
-  affect_SWLS_sub = affect_SWLS_content_sub$results
+  affect_acceptance_sub = affect_acceptance_sub$results,
+  affect_autonomy_sub =affect_autonomy_sub$results,
+  affect_growth_sub = affect_growth_sub$results,
+  affect_purpose_sub = affect_purpose_sub$results,
+  affect_relationships_sub = affect_relationships_sub$results,
+  affect_PWB_sub = affect_PWB_sub$results,
+  affect_SWLS_sub = affect_SWLS_sub$results
 )
 affect_results <- process_results(result_list)
 
 
 
 result_list <- list(
-  affect_acceptance_sub = affect_acceptance_content_sub,
-  affect_autonomy_sub =affect_autonomy_content_sub,
-  affect_growth_sub = affect_growth_content_sub,
-  affect_purpose_sub = affect_purpose_content_sub,
-  affect_relationships_sub = affect_relationships_content_sub,
-  affect_PWB_sub = affect_PWB_content_sub,
-  affect_SWLS_sub = affect_SWLS_content_sub
+  affect_acceptance_sub = affect_acceptance_sub,
+  affect_autonomy_sub =affect_autonomy_sub,
+  affect_growth_sub = affect_growth_sub,
+  affect_purpose_sub = affect_purpose_sub,
+  affect_relationships_sub = affect_relationships_sub,
+  affect_PWB_sub = affect_PWB_sub,
+  affect_SWLS_sub = affect_SWLS_sub
 )
 
 # Calculate and store RMSE
@@ -428,10 +427,10 @@ affect_results<- affect_results %>%
 
 
 # Save the model output to an RDS file
-  saveRDS(affect_results, "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/pos-affect/affect_results.RDS")
+  saveRDS(affect_results, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/affect/affect_results.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  affect_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/pos-affect/affect_results.RDS")
+  affect_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/affect/affect_results.RDS")
 }
 ```
 
@@ -450,9 +449,9 @@ affect_heat <- ggplot(affect_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-  scale_fill_gradient2(low = "#c44536",
+  scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
-                       high = "#4EEB53") +
+                       high = "#c44536") +
     geom_text(data = subset(affect_results, p.value < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
               color = "black", size = 4, vjust = -0.5) +
     geom_text(data = subset(affect_results, p.value < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
@@ -468,9 +467,9 @@ affect_heat
 ### Models {.tabset}
 
 ```{r}
-if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/growth/growth_results.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/growthgrowth_results.RDS")) {
 
-growth_path <- "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/growth"
+growth_path <- "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/growth"
 
 # List all files in the directory with the .RDS extension
 rds_files <- list.files(growth_path, pattern = "\\.RDS$", full.names = TRUE)
@@ -491,26 +490,26 @@ for (growth_path in rds_files) {
 
 # Example usage:
 result_list <- list(
-  growth_acceptance_sub = growth_acceptance_content_sub$results,
-  growth_autonomy_sub =growth_autonomy_content_sub$results,
-  growth_growth_sub = growth_growth_content_sub$results,
-  growth_purpose_sub = growth_purpose_content_sub$results,
-  growth_relationships_sub = growth_relationships_content_sub$results,
-  growth_PWB_sub = growth_PWB_content_sub$results,
-  growth_SWLS_sub = growth_SWLS_content_sub$results
+  growth_acceptance_sub = growth_acceptance_sub$results,
+  growth_autonomy_sub =growth_autonomy_sub$results,
+  growth_growth_sub = growth_growth_sub$results,
+  growth_purpose_sub = growth_purpose_sub$results,
+  growth_relationships_sub = growth_relationships_sub$results,
+  growth_PWB_sub = growth_PWB_sub$results,
+  growth_SWLS_sub = growth_SWLS_sub$results
 )
 growth_results <- process_results(result_list)
 
 
 
 result_list <- list(
-  growth_acceptance_sub = growth_acceptance_content_sub,
-  growth_autonomy_sub =growth_autonomy_content_sub,
-  growth_growth_sub = growth_growth_content_sub,
-  growth_purpose_sub = growth_purpose_content_sub,
-  growth_relationships_sub = growth_relationships_content_sub,
-  growth_PWB_sub = growth_PWB_content_sub,
-  growth_SWLS_sub = growth_SWLS_content_sub
+  growth_acceptance_sub = growth_acceptance_sub,
+  growth_autonomy_sub =growth_autonomy_sub,
+  growth_growth_sub = growth_growth_sub,
+  growth_purpose_sub = growth_purpose_sub,
+  growth_relationships_sub = growth_relationships_sub,
+  growth_PWB_sub = growth_PWB_sub,
+  growth_SWLS_sub = growth_SWLS_sub
 )
 
 # Calculate and store RMSE
@@ -524,10 +523,10 @@ growth_results<- growth_results %>%
 
 
 # Save the model output to an RDS file
-  saveRDS(growth_results, "/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/growth/growth_results.RDS")
+  saveRDS(growth_results, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/growthgrowth_results.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  growth_results <- readRDS("//Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/growth/growth_results.RDS")
+  growth_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/growth/growth_results.RDS")
 }
 ```
 
@@ -545,9 +544,9 @@ growth_heat <- ggplot(growth_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-  scale_fill_gradient2(low = "#c44536",
+  scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
-                       high = "#4EEB53") +
+                       high = "#c44536") +
     geom_text(data = subset(growth_results, p.value < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
               color = "black", size = 4, vjust = -0.5) +
     geom_text(data = subset(growth_results, p.value < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
@@ -561,9 +560,9 @@ growth_heat
 ## Purpose {.tabset}
 
 ```{r}
-if (!file.exists("//Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/purpose/purpose_results.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/purpose/purpose_results.RDS")) {
 
-purpose_path <- "//Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/purpose"
+purpose_path <- "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/purpose/"
 
 # List all files in the directory with the .RDS extension
 rds_files <- list.files(purpose_path, pattern = "\\.RDS$", full.names = TRUE)
@@ -584,26 +583,26 @@ for (purpose_path in rds_files) {
 
 # Example usage:
 result_list <- list(
-  purpose_acceptance_sub = purpose_acceptance_content_sub$results,
-  purpose_autonomy_sub =purpose_autonomy_content_sub$results,
-  purpose_growth_sub = purpose_growth_content_sub$results,
-  purpose_purpose_sub = purpose_purpose_content_sub$results,
-  purpose_relationships_sub = purpose_relationships_content_sub$results,
-  purpose_PWB_sub = purpose_PWB_content_sub$results,
-  purpose_SWLS_sub = purpose_SWLS_content_sub$results
+  purpose_acceptance_sub = purpose_acceptance_sub$results,
+  purpose_autonomy_sub =purpose_autonomy_sub$results,
+  purpose_growth_sub = purpose_growth_sub$results,
+  purpose_purpose_sub = purpose_purpose_sub$results,
+  purpose_relationships_sub = purpose_relationships_sub$results,
+  purpose_PWB_sub = purpose_PWB_sub$results,
+  purpose_SWLS_sub = purpose_SWLS_sub$results
 )
 purpose_results <- process_results(result_list)
 
 
 
 result_list <- list(
-  purpose_acceptance_sub = purpose_acceptance_content_sub,
-  purpose_autonomy_sub =purpose_autonomy_content_sub,
-  purpose_growth_sub = purpose_growth_content_sub,
-  purpose_purpose_sub = purpose_purpose_content_sub,
-  purpose_relationships_sub = purpose_relationships_content_sub,
-  purpose_PWB_sub = purpose_PWB_content_sub,
-  purpose_SWLS_sub = purpose_SWLS_content_sub
+  purpose_acceptance_sub = purpose_acceptance_sub,
+  purpose_autonomy_sub =purpose_autonomy_sub,
+  purpose_growth_sub = purpose_growth_sub,
+  purpose_purpose_sub = purpose_purpose_sub,
+  purpose_relationships_sub = purpose_relationships_sub,
+  purpose_PWB_sub = purpose_PWB_sub,
+  purpose_SWLS_sub = purpose_SWLS_sub
 )
 
 # Calculate and store RMSE
@@ -617,10 +616,10 @@ purpose_results<- purpose_results %>%
 
 
 # Save the model output to an RDS file
-  saveRDS(purpose_results, "//Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/purpose/purpose_results.RDS")
+  saveRDS(purpose_results, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/purpose/purpose_results.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  purpose_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/purpose/purpose_results.RDS")
+  purpose_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/purpose/purpose_results.RDS")
 }
 ```
 
@@ -639,9 +638,9 @@ purpose_heat <- ggplot(purpose_results, aes(x = prompt, y = outcome, fill = r)) 
   geom_tile(color = "white") +
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-  scale_fill_gradient2(low = "#c44536",
+  scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
-                       high = "#4EEB53") +
+                       high = "#c44536") +
     geom_text(data = subset(purpose_results, p.value < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
               color = "black", size = 4, vjust = -0.5) +
     geom_text(data = subset(purpose_results, p.value < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
@@ -658,9 +657,9 @@ purpose_heat
 ### Models {.tabset}
 
 ```{r}
-if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/relations/relations_results.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/relations/relations_results.RDS")) {
 
-relations_path <- "//Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/relations"
+relations_path <- "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/relations"
 
 # List all files in the directory with the .RDS extension
 rds_files <- list.files(relations_path, pattern = "\\.RDS$", full.names = TRUE)
@@ -681,26 +680,26 @@ for (relations_path in rds_files) {
 
 # Example usage:
 result_list <- list(
-  relations_acceptance_sub = relations_acceptance_content_sub$results,
-  relations_autonomy_sub =relations_autonomy_content_sub$results,
-  relations_growth_sub = relations_growth_content_sub$results,
-  relations_purpose_sub = relations_purpose_content_sub$results,
-  relations_relationships_sub = relations_relationships_content_sub$results,
-  relations_PWB_sub = relations_PWB_content_sub$results,
-  relations_SWLS_sub = relations_SWLS_content_sub$results
+  relations_acceptance_sub = relations_acceptance_sub$results,
+  relations_autonomy_sub =relations_autonomy_sub$results,
+  relations_growth_sub = relations_growth_sub$results,
+  relations_purpose_sub = relations_purpose_sub$results,
+  relations_relationships_sub = relations_relationships_sub$results,
+  relations_PWB_sub = relations_PWB_sub$results,
+  relations_SWLS_sub = relations_SWLS_sub$results
 )
 relations_results <- process_results(result_list)
 
 
 
 result_list <- list(
-  relations_acceptance_sub = relations_acceptance_content_sub,
-  relations_autonomy_sub =relations_autonomy_content_sub,
-  relations_growth_sub = relations_growth_content_sub,
-  relations_purpose_sub = relations_purpose_content_sub,
-  relations_relationships_sub = relations_relationships_content_sub,
-  relations_PWB_sub = relations_PWB_content_sub,
-  relations_SWLS_sub = relations_SWLS_content_sub
+  relations_acceptance_sub = relations_acceptance_sub,
+  relations_autonomy_sub =relations_autonomy_sub,
+  relations_growth_sub = relations_growth_sub,
+  relations_purpose_sub = relations_purpose_sub,
+  relations_relationships_sub = relations_relationships_sub,
+  relations_PWB_sub = relations_PWB_sub,
+  relations_SWLS_sub = relations_SWLS_sub
 )
 
 # Calculate and store RMSE
@@ -714,10 +713,10 @@ relations_results<- relations_results %>%
 
 
 # Save the model output to an RDS file
-  saveRDS(relations_results, "//Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/relations/relations_results.RDS")
+  saveRDS(relations_results, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/relations/relations_results.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  relations_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/subscale-models/models/relations/relations_results.RDS")
+  relations_results <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/relations/relations_results.RDS")
 }
 ```
 
@@ -734,9 +733,9 @@ relations_heat <- ggplot(relations_results, aes(x = prompt, y = outcome, fill = 
   geom_tile(color = "white") +
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-  scale_fill_gradient2(low = "#c44536",
+  scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
-                       high = "#4EEB53") +
+                       high = "#c44536") +
     geom_text(data = subset(relations_results, p.value < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
               color = "black", size = 4, vjust = -0.5) +
     geom_text(data = subset(relations_results, p.value < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
@@ -745,34 +744,93 @@ relations_heat <- ggplot(relations_results, aes(x = prompt, y = outcome, fill = 
               color = "black", size = 4, vjust = -0.5) + plot_aes
 
 relations_heat
+
+
 ```
 
 # All subscales Heatmap
 
 ```{r all-subscales-heat}
+
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/all_subscales.RDS")) {
+  
+  
 combined_df <- rbind(autonomy_results,accept_results, affect_results, growth_results, purpose_results, relations_results)
 
+
+  saveRDS(combined_df,"/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/all_subscales.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  combined_df <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/all_subscales.RDS")
+}
 
 all_heat <- ggplot(combined_df, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-  scale_fill_gradient2(low = "#c44536",
+  scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
-                       high = "#4EEB53") +
+                       high = "#c44536") +
     geom_text(data = subset(combined_df, p.value < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
               color = "black", size = 4, vjust = -0.5) +
     geom_text(data = subset(combined_df, p.value < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
               color = "black", size = 4, vjust = -0.5) +
     geom_text(data = subset(combined_df, p.value < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
               color = "black", size = 4, vjust = -0.5) + 
-    ggtitle("Content Word: Subscale Predicition") +  plot_aes  +  
+    ggtitle("Subscale Predicition") +  plot_aes  +  
   theme(
     plot.title = element_text(hjust = 0.5, vjust = 1.5)
   ) 
 
 all_heat
 
+```
+
+# T-SNE Plot
+
+```{r fig.height=6, fig.width=10}
+autonomy_embeddings <- embeddings$word_types
+
+
+autonomy_embeddings <- autonomy_embeddings %>% 
+  filter(n > 100)
+
+
+autonomy_embeddings_matrix <- as.matrix(autonomy_embeddings[3:1026])
+
+
+tsne_out <- Rtsne(autonomy_embeddings_matrix)
+
+
+tsne_data <- cbind(autonomy_embeddings, tsne_out$Y)
+
+
+tsne_plot <- data.frame(x = tsne_out$Y[,1], 
+                        y = tsne_out$Y[,2],
+                        words = tsne_data$words,
+                        n = tsne_data$n)
+
+plot_aes = theme_minimal() +
+  theme(legend.position = "right",
+        legend.text = element_text(size = 4),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
+        axis.ticks.y = element_blank())
+
+
+filtered_words <- c("[CLS]", "[SEP]", "uh",'um',"##ful", "##ly", "##ing","##s","'",",",".","?","ll",'re','ve','t',"m","d",'s',"##ri","##ving","##lessly")  # Replace with the words you want to filter out
+
+
+filtered_tsne_plot <- tsne_plot %>%
+  filter(n > 100, !words %in% filtered_words)
+
+ggplot(filtered_tsne_plot, aes(x, y, label = words)) +
+  geom_text(nudge_y = 0.01, check_overlap = TRUE, color = "dodgerblue2") +  # Adjust nudge_y for label positioning
+  labs(title = "t-SNE Plot: Word Embedding Visualization") + plot_aes + 
+  theme(
+    axis.title = element_blank(),  # Hide axis titles
+    plot.title = element_text(hjust = 0.5)  # Center the plot title
+  )
 
 ```
 

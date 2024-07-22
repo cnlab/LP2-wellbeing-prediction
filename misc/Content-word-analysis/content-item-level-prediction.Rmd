@@ -1,5 +1,5 @@
 ---
-title: "Cotent-Item-level-Prediction"
+title: "Content-Item-level-Prediction"
 author: ""
 date: "`r Sys.Date()`"
 output:
@@ -26,7 +26,7 @@ options(scipen=999)
 ```{r load packages and installize conda environment, include=FALSE}
 if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
 library(pacman)
-setwd("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/models")
+#setwd("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Content-word-analysis/models")
 
 
 
@@ -97,9 +97,10 @@ table <- function(correlation_data) {
 # load data
 
 ```{r load-data}
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/surveys_scored/LP2_transcriptions_behavioral.csv")
+df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_text/surveys_scored/LP2_transcriptions_behavioral.csv")
 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/embeddings/Content_word_embeddings.rds")
+
+embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_text/embeddings/study_1/Content_word_embeddings.rds")
 ```
 
 ```{r eval=FALSE, include=FALSE}
@@ -139,7 +140,7 @@ affect <- df %>%
   select(starts_with("pre_SWLS"))
 
 
-if (!file.exists("content_affect_item_output.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/content_affect_item_output.RDS")) {
   affect_item <- textTrainLists(
     x = embeddings$texts[7:9],
     y = affect[1:6],
@@ -151,10 +152,10 @@ if (!file.exists("content_affect_item_output.RDS")) {
     model_description = "positive affect content words predicting pre-subscales and WB, N = 181"
   )
    # Save the model output to an RDS file
-  saveRDS(affect_item, "content_affect_item_output.RDS")
+  saveRDS(affect_item, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/content_affect_item_output.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  affect_item <- readRDS("content_affect_item_output.RDS")
+  affect_item <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/content_affect_item_output.RDS")
 }
 
 affect_item_predictions <-as.data.frame(affect_item$predictions[1:15])
@@ -180,6 +181,8 @@ affect_item_results <- head(affect_item$results, 15)
 affect_item_results$RMSE <- affect_rmse$RMSE
 table(affect_item_results)
 ```  
+
+### Heatmap
 
 ```{r affect,fig.height=10, fig.width=10}
 ### Heatmap
@@ -210,9 +213,9 @@ affect_heat <- ggplot(affect_item_results, aes(x = prompt, y = SWLS, fill = corr
   geom_tile(color = "white") +
   geom_text(aes(label = round(correlation, 2)), color = "black", size = 10) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 7, vjust = 2) +
-  scale_fill_gradient2(low = "#c44536",                        
+scale_fill_gradient2(low =  "#9C89FF",                        
                        mid = "#FFFFCC",                       
-                       high = "#4EEB53") +
+                       high = "#c44536") +
     geom_text(data = subset(affect_item_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = SWLS, hjust = 1),
               color = "black", size = 10, vjust = -0.5) +
     geom_text(data = subset(affect_item_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = SWLS, hjust = 1),
@@ -262,7 +265,7 @@ affect_heat
 purpose <- df %>%
   select(starts_with("pre_Purpose_in_Life"))
 
-if (!file.exists("purpose_item_level_content_output.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/purpose_item_level_content_output.RDS")) {
  purpose_item <- textTrainLists(
     x = embeddings$texts[10:12],
     y = purpose[1:3],
@@ -276,10 +279,10 @@ if (!file.exists("purpose_item_level_content_output.RDS")) {
   
   
   # Save the model output to an RDS file
-  saveRDS(purpose_item, "purpose_item_level_content_output.RDS")
+  saveRDS(purpose_item, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/purpose_item_level_content_output.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  purpose_item <- readRDS("purpose_item_level_content_output.RDS")
+  purpose_item <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/purpose_item_level_content_output.RDS")
 }
 
 ###tack on RMSE 
@@ -337,9 +340,9 @@ purpose_heat <- ggplot(purpose_item_results, aes(x = prompt, y = purpose, fill =
   geom_tile(color = "white") +
   geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) +
-   scale_fill_gradient2(low = "#c44536",                        
+scale_fill_gradient2(low =  "#9C89FF",                        
                        mid = "#FFFFCC",                       
-                       high = "#4EEB53") +
+                       high = "#c44536") +
     geom_text(data = subset(purpose_item_results, p_value < 0.05), aes(label = "*", x = prompt, y = purpose, hjust = 1),
               color = "black", size = 12, vjust = -0.5) +
     geom_text(data = subset(purpose_item_results, p_value < 0.01), aes(label = "**", x = prompt, y = purpose, hjust = 1),
@@ -386,7 +389,7 @@ purpose_heat
 relationships <- df %>%
   select(starts_with("pre_Positive_Relations"))
 
-if (!file.exists("relationships_content_item_level_output.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/relationships_content_item_level_output.RDS")) {
  relationships_item <- textTrainLists(
     x = embeddings$texts[13:15],
     y = relationships[1:3],
@@ -400,10 +403,10 @@ if (!file.exists("relationships_content_item_level_output.RDS")) {
   
   
   # Save the model output to an RDS file
-  saveRDS(relationships_item, "relationships_content_item_level_output.RDS")
+  saveRDS(relationships_item, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/relationships_content_item_level_output.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  relationships_item <- readRDS("relationships_content_item_level_output.RDS")
+  relationships_item <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/relationships_content_item_level_output.RDS")
 }
 
 relationship_item_predictions <-as.data.frame(relationships_item$predictions[1:9])
@@ -462,9 +465,9 @@ relationships_heat <- ggplot(relationships_results, aes(x = prompt, y = relation
   geom_tile(color = "white") +
  geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) +
-   scale_fill_gradient2(low = "#c44536",                        
+scale_fill_gradient2(low =  "#9C89FF",                        
                        mid = "#FFFFCC",                       
-                       high = "#4EEB53") +
+                       high = "#c44536") +
     geom_text(data = subset(relationships_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = relationships, hjust = 1),
               color = "black", size = 12, vjust = -0.5) +
     geom_text(data = subset(relationships_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = relationships, hjust = 1),
@@ -514,7 +517,7 @@ relationships_heat
 acceptance <- df %>%
   select(starts_with("pre_Self-Acceptance"))
 
-if (!file.exists("acceptance_content_item_output.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/acceptance_content_item_output.RDS")) {
  acceptance_item <- textTrainLists(
     x = embeddings$texts[16:18],
     y = acceptance[1:3],
@@ -528,10 +531,10 @@ if (!file.exists("acceptance_content_item_output.RDS")) {
   
   
   # Save the model output to an RDS file
-  saveRDS(acceptance_item, "acceptance_content_item_output.RDS")
+  saveRDS(acceptance_item, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/acceptance_content_item_output.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  acceptance_item <- readRDS("acceptance_content_item_output.RDS")
+  acceptance_item <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/acceptance_content_item_output.RDS")
 }
 
 acceptance_item_predictions <-as.data.frame(acceptance_item$predictions[1:9])
@@ -586,9 +589,9 @@ acceptance_heat <-
   geom_tile(color = "white") +
  geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) +
- scale_fill_gradient2(low = "#c44536",                        
+scale_fill_gradient2(low =  "#9C89FF",                        
                        mid = "#FFFFCC",                       
-                       high = "#4EEB53") +
+                       high = "#c44536") +
     geom_text(data = subset(acceptance_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = acceptance, hjust = 1),
               color = "black", size = 12, vjust = -0.5) +
     geom_text(data = subset(acceptance_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = acceptance, hjust = 1),
@@ -640,7 +643,7 @@ growth <- df %>%
   select(starts_with("pre_Personal_Growth"))
 
 
-if (!file.exists("growth_content_item_output.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/growth_content_item_output.RDS")) {
  growth_item <- textTrainLists(
     x = embeddings$texts[4:6],
     y = growth[1:3],
@@ -654,10 +657,10 @@ if (!file.exists("growth_content_item_output.RDS")) {
   
   
   # Save the model output to an RDS file
-  saveRDS(growth_item, "growth_content_item_output.RDS")
+  saveRDS(growth_item, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/growth_content_item_output.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  growth_item <- readRDS("growth_content_item_output.RDS")
+  growth_item <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/growth_content_item_output.RDS")
 }
 
 
@@ -715,9 +718,9 @@ ggplot(growth_results, aes(x = prompt, y = growth, fill = correlation)) +
   geom_tile(color = "white") +
  geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) +
- scale_fill_gradient2(low = "#c44536",                        
+scale_fill_gradient2(low =  "#9C89FF",                        
                        mid = "#FFFFCC",                       
-                       high = "#4EEB53") +
+                       high = "#c44536") +
     geom_text(data = subset(growth_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = growth, hjust = 1),
               color = "black", size = 12, vjust = -0.5) +
     geom_text(data = subset(growth_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = growth, hjust = 1),
@@ -769,7 +772,7 @@ autonomy <- df %>%
   select(starts_with("pre_Autonomy"))
 
 
-if (!file.exists("autonomy_content_item_output.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/autonomy_content_item_output.RDS")) {
  autonomy_item <- textTrainLists(
     x = embeddings$texts[1:3],
     y = autonomy[1:3],
@@ -783,10 +786,10 @@ if (!file.exists("autonomy_content_item_output.RDS")) {
   
   
   # Save the model output to an RDS file
-  saveRDS(autonomy_item, "autonomy_content_item_output.RDS")
+  saveRDS(autonomy_item, "/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/autonomy_content_item_output.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  autonomy_item <- readRDS("autonomy_content_item_output.RDS")
+  autonomy_item <- readRDS("/Users/stevenmesquiti/Desktop/LP2-wellbeing-pred/LP2-wellbeing-prediction/Content-word-analysis/models/autonomy_content_item_output.RDS")
 }
 
 
@@ -844,9 +847,9 @@ autonomy_heat <-
   geom_tile(color = "white") +
   geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) + # Add RMSE values
-  scale_fill_gradient2(low = "#c44536",                        
+scale_fill_gradient2(low =  "#9C89FF",                        
                        mid = "#FFFFCC",                       
-                       high = "#4EEB53") +
+                       high = "#c44536") +
   geom_text(data = subset(autonomy_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = autonomy, hjust = 1),
             color = "black", size = 12, vjust = -0.5) +
   geom_text(data = subset(autonomy_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = autonomy, hjust = 1),
