@@ -1,5 +1,5 @@
 ---
-title: "LP2-Item-level-Prediction"
+title: "Study 1: LP2-Item-level-Prediction"
 author: ""
 date: "`r Sys.Date()`"
 output:
@@ -96,14 +96,86 @@ table <- function(correlation_data) {
 # load data
 
 ```{r load-data}
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_text/surveys_scored/LP2_transcriptions_behavioral.csv")
+df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv")
 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_text/embeddings/study_1/all_embeddings.rds")
+embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/embeddings/study_1/all_embeddings.rds")
 ```
 
-```{r eval=FALSE, include=FALSE}
-colnames(df)
+# Inter-item Correlations
+
+```{r}
+
+items = df %>% 
+  select(42:63)
+
+
+calculate_cronbach_alpha <- function(df) {
+  # Identify subscales based on column names
+  subscales <- unique(sub("_[0-9]+$", "", colnames(df)))
+  
+  # Remove non-item columns
+  subscales <- subscales[!subscales %in% c("pID", "survey_name")]
+  
+  # Initialize a dataframe to store alpha results
+  alpha_results <- data.frame(subscale = character(), alpha = numeric(), stringsAsFactors = FALSE)
+  
+  # Loop through each subscale and calculate Cronbach's alpha
+  for (subscale in subscales) {
+    # Select columns for the current subscale
+    subscale_cols <- grep(paste0("^", subscale, "_"), colnames(df), value = TRUE)
+    
+    if (length(subscale_cols) > 0) {
+      # Calculate Cronbach's alpha
+      alpha_value <- psych::alpha(df[, subscale_cols], check.keys = TRUE)$total$raw_alpha
+      
+      # Store the result in the dataframe
+      alpha_results <- rbind(alpha_results, data.frame(subscale = subscale, alpha = alpha_value))
+    }
+  }
+  
+  # Calculate Cronbach's alpha for all PWB items excluding SWLS items
+  # Select PWB columns
+  pwb_cols <- grep("^PWB_", colnames(df), value = TRUE)
+  
+  # Select SWLS columns
+  swls_cols <- grep("^SWLS_", colnames(df), value = TRUE)
+  
+  # Ensure there are columns to exclude
+  if (length(pwb_cols) > 0 && length(swls_cols) > 0) {
+    # Exclude SWLS columns from PWB columns
+    pwb_excluding_swls_cols <- setdiff(pwb_cols, swls_cols)
+    
+    if (length(pwb_excluding_swls_cols) > 0) {
+      pwb_alpha_value <- psych::alpha(df[, pwb_excluding_swls_cols], check.keys = TRUE)$total$raw_alpha
+      
+      # Add the result to the dataframe
+      alpha_results <- rbind(alpha_results, data.frame(subscale = "PWB", alpha = pwb_alpha_value))
+    }
+  }
+  
+  return(alpha_results)
+}
+
+
+alpha_results <- calculate_cronbach_alpha(items)
+
+pwb = items %>% 
+  select(1:18)
+
+pwb_alpha_value = psych::alpha(pwb)$total$raw_alpha
+alpha_results <- rbind(alpha_results, data.frame(subscale = "PWB", alpha = pwb_alpha_value))
+
+
+alpha_results %>% 
+  mutate(alpha = round(alpha, 3)) %>% 
+  reactable(striped = TRUE,
+            filterable = TRUE,
+            resizable = TRUE,
+            pageSizeOptions = 25)
+
 ```
+
+
 
 # construct models {.tabset}
 
@@ -138,7 +210,7 @@ affect <- df %>%
   select(starts_with("pre_SWLS"))
 
 
-if (!file.exists("affect_item_output.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/affect_item_output.RDS")) {
   affect_item <- textTrainLists(
     x = embeddings$texts[7:9],
     y = affect[1:6],
@@ -150,10 +222,10 @@ if (!file.exists("affect_item_output.RDS")) {
     model_description = "positive affect predicting pre-subscales and WB, N = 181"
   )
    # Save the model output to an RDS file
-  saveRDS(affect_item, "affect_item_output.RDS")
+  saveRDS(affect_item, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/affect_item_output.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  affect_item <- readRDS("affect_item_output.RDS")
+  affect_item <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/affect_item_output.RDS")
 }
 
 affect_item_predictions <-as.data.frame(affect_item$predictions[1:15])
@@ -262,7 +334,7 @@ affect_heat
 purpose <- df %>%
   select(starts_with("pre_Purpose_in_Life"))
 
-if (!file.exists("purpose_item_level_output.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/purpose_item_level_output.RDS")) {
  purpose_item <- textTrainLists(
     x = embeddings$texts[10:12],
     y = purpose[1:3],
@@ -276,10 +348,10 @@ if (!file.exists("purpose_item_level_output.RDS")) {
   
   
   # Save the model output to an RDS file
-  saveRDS(purpose_item, "purpose_item_level_output.RDS")
+  saveRDS(purpose_item, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/purpose_item_level_output.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  purpose_item <- readRDS("purpose_item_level_output.RDS")
+  purpose_item <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/purpose_item_level_output.RDS")
 }
 
 ###tack on RMSE 
@@ -386,7 +458,7 @@ purpose_heat
 relationships <- df %>%
   select(starts_with("pre_Positive_Relations"))
 
-if (!file.exists("relationships_item_level_output.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/relationships_item_level_output.RDS")) {
  relationships_item <- textTrainLists(
     x = embeddings$texts[13:15],
     y = relationships[1:3],
@@ -400,10 +472,10 @@ if (!file.exists("relationships_item_level_output.RDS")) {
   
   
   # Save the model output to an RDS file
-  saveRDS(relationships_item, "relationships_item_level_output.RDS")
+  saveRDS(relationships_item, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/relationships_item_level_output.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  relationships_item <- readRDS("relationships_item_level_output.RDS")
+  relationships_item <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/relationships_item_level_output.RDS")
 }
 
 relationship_item_predictions <-as.data.frame(relationships_item$predictions[1:9])
@@ -514,7 +586,7 @@ relationships_heat
 acceptance <- df %>%
   select(starts_with("pre_Self-Acceptance"))
 
-if (!file.exists("acceptance_item_output.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/acceptance_item_output.RDS")) {
  acceptance_item <- textTrainLists(
     x = embeddings$texts[16:18],
     y = acceptance[1:3],
@@ -528,10 +600,10 @@ if (!file.exists("acceptance_item_output.RDS")) {
   
   
   # Save the model output to an RDS file
-  saveRDS(acceptance_item, "acceptance_item_output.RDS")
+  saveRDS(acceptance_item, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/acceptance_item_output.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  acceptance_item <- readRDS("acceptance_item_output.RDS")
+  acceptance_item <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/acceptance_item_output.RDS")
 }
 
 acceptance_item_predictions <-as.data.frame(acceptance_item$predictions[1:9])
@@ -640,7 +712,7 @@ growth <- df %>%
   select(starts_with("pre_Personal_Growth"))
 
 
-if (!file.exists("growth_item_output.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/growth_item_output.RDS")) {
  growth_item <- textTrainLists(
     x = embeddings$texts[4:6],
     y = growth[1:3],
@@ -654,10 +726,10 @@ if (!file.exists("growth_item_output.RDS")) {
   
   
   # Save the model output to an RDS file
-  saveRDS(growth_item, "growth_item_output.RDS")
+  saveRDS(growth_item, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/growth_item_output.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  growth_item <- readRDS("growth_item_output.RDS")
+  growth_item <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/growth_item_output.RDS")
 }
 
 
@@ -769,7 +841,7 @@ autonomy <- df %>%
   select(starts_with("pre_Autonomy"))
 
 
-if (!file.exists("autonomy_item_output.RDS")) {
+if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/autonomy_item_output.RDS")) {
  autonomy_item <- textTrainLists(
     x = embeddings$texts[1:3],
     y = autonomy[1:3],
@@ -783,10 +855,10 @@ if (!file.exists("autonomy_item_output.RDS")) {
   
   
   # Save the model output to an RDS file
-  saveRDS(autonomy_item, "autonomy_item_output.RDS")
+  saveRDS(autonomy_item, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/autonomy_item_output.RDS")
 } else {
   # If the RDS file already exists, load the data from it
-  autonomy_item <- readRDS("autonomy_item_output.RDS")
+  autonomy_item <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/autonomy_item_output.RDS")
 }
 
 
