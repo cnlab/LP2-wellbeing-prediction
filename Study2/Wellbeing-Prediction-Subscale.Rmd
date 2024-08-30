@@ -29,7 +29,7 @@ library(pacman)
 
 #setwd("~/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/item_level_analyses")
 
-pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,rsample, purrr, tibble,install = T) 
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,rsample, purrr,psych, tibble,install = T) 
 # Set-up an environment with text-required python packages
 ```
 
@@ -44,7 +44,11 @@ textrpp_initialize()
 plot_aes = theme_minimal() +
   theme(legend.position = "none",
         text = element_text(family = "Futura Medium"),
-        axis.ticks.y = element_blank())
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(hjust = 0.5, vjust = 1.5),
+        plot.caption = element_text(hjust = 1, size = 10),
+        legend.text = element_text(size = 7, family = "Futura Medium")  # Adjust legend text here
+  )
 ```
 
 ```{r define functions}
@@ -97,7 +101,9 @@ table <- function(correlation_data) {
 # load data
 
 ```{r load-data}
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/data/LP2_Wellbeing-Prediction_Behavioral.csv")
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
+
+df = read.csv(file.path(data_dir,"data/LP2_Wellbeing-Prediction_Behavioral.csv"))
 
 ###turn to wide format 
 
@@ -106,7 +112,9 @@ df = df %>%
    spread(key = measure, value = score)
 
 ###prep the text data 
-text <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/data_text/wellbeing-prediction-text-long.csv")
+
+text = read.csv(file.path(data_dir,"data_text/wellbeing-prediction-text-long.csv"))
+
 
 
 text_grouped <- text %>%
@@ -128,9 +136,83 @@ df <- df %>%
   filter(pID %in% text_embed_pids)
 
 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/embeddings/wellbeing-prediction-embeddings.rds")
+embeddings <- readRDS(file.path(data_dir,"embeddings/wellbeing-prediction-embeddings.rds"))
 ```
 
+# Inter-item Correlations
+
+```{r}
+
+items = read.csv(file.path(data_dir,'data/SONA_wellbeing-prediction-items.csv'))
+
+items = items %>% 
+  select(-X,-pID,-Reflection_Type,-survey_name)
+
+calculate_cronbach_alpha <- function(df) {
+  # Identify subscales based on column names
+  subscales <- unique(sub("_[0-9]+$", "", colnames(df)))
+  
+  # Remove non-item columns
+  subscales <- subscales[!subscales %in% c("pID", "survey_name")]
+  
+  # Initialize a dataframe to store alpha results
+  alpha_results <- data.frame(subscale = character(), alpha = numeric(), stringsAsFactors = FALSE)
+  
+  # Loop through each subscale and calculate Cronbach's alpha
+  for (subscale in subscales) {
+    # Select columns for the current subscale
+    subscale_cols <- grep(paste0("^", subscale, "_"), colnames(df), value = TRUE)
+    
+    if (length(subscale_cols) > 0) {
+      # Calculate Cronbach's alpha
+      alpha_value <- psych::alpha(df[, subscale_cols], check.keys = TRUE)$total$raw_alpha
+      
+      # Store the result in the dataframe
+      alpha_results <- rbind(alpha_results, data.frame(subscale = subscale, alpha = alpha_value))
+    }
+  }
+  
+  # Calculate Cronbach's alpha for all PWB items excluding SWLS items
+  # Select PWB columns
+  pwb_cols <- grep("^PWB_", colnames(df), value = TRUE)
+  
+  # Select SWLS columns
+  swls_cols <- grep("^SWLS_", colnames(df), value = TRUE)
+  
+  # Ensure there are columns to exclude
+  if (length(pwb_cols) > 0 && length(swls_cols) > 0) {
+    # Exclude SWLS columns from PWB columns
+    pwb_excluding_swls_cols <- setdiff(pwb_cols, swls_cols)
+    
+    if (length(pwb_excluding_swls_cols) > 0) {
+      pwb_alpha_value <- psych::alpha(df[, pwb_excluding_swls_cols], check.keys = TRUE)$total$raw_alpha
+      
+      # Add the result to the dataframe
+      alpha_results <- rbind(alpha_results, data.frame(subscale = "PWB", alpha = pwb_alpha_value))
+    }
+  }
+  
+  return(alpha_results)
+}
+
+
+alpha_results <- calculate_cronbach_alpha(items)
+
+pwb = items %>% 
+  select(3:20)
+
+pwb_alpha_value = psych::alpha(pwb)$total$raw_alpha
+alpha_results <- rbind(alpha_results, data.frame(subscale = "PWB", alpha = pwb_alpha_value))
+
+
+alpha_results %>% 
+  mutate(alpha = round(alpha, 3)) %>% 
+  reactable(striped = TRUE,
+            filterable = TRUE,
+            resizable = TRUE,
+            pageSizeOptions = 25)
+
+```
 
 # All Responses (audio + text) {.tabset}
 
@@ -140,7 +222,11 @@ embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/
 
 ```{r}
 
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/SWLS_subscale.RDS")) {
+
+rds_file_path <- file.path(data_dir, "models/prelim-analyses/SWLS_subscale.RDS") #update with the path to each model
+
+
+if (!file.exists(rds_file_path)) {
   SWLS_subscale <- textTrainLists(
     x = embeddings$texts$SWLS, #use satifaction with life
     y = df[2:9],
@@ -152,10 +238,10 @@ if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-b
     model_description = "SWLS embeddings predicting PWB and SWLS, N = 144"
   )
    # Save the model output to an RDS file
-  saveRDS(SWLS_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/SWLS_subscale.RDS")
+  saveRDS(SWLS_subscale,rds_file_path)
 } else {
   # If the RDS file already exists, load the data from it
-  SWLS_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/SWLS_subscale.RDS")
+  SWLS_subscale <- readRDS(rds_file_path)
 }
 filtered_predictions <- na.omit(SWLS_subscale$predictions[1:8])
 SWLS_subscale_predictions <- as.data.frame(filtered_predictions)
@@ -234,6 +320,7 @@ SWLS_heat
 
 
 ```{r eval=FALSE, fig.height=7, fig.width=7, include=FALSE}
+
 if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/SDP/SWLS_SWLS_SDP.RDS")) {
   # If the file doesn't exist, perform the analysis
  SWLS_SWLS_PWB_SDP <- textProjection(
@@ -319,7 +406,10 @@ SWLS_SWLS_PWB$final_plot
 ### Models
 
 ```{r}
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/autonomy_subscale.RDS")) {
+
+rds_file_path <- file.path(data_dir, "models/prelim-analyses/autonomy_subscale.RDS") #update with the path to each model
+
+if (!file.exists(rds_file_path)) {
   Autonomy_subscale <- textTrainLists(
     x = embeddings$texts$Autonomy, #use satifaction with life
     y = df[2:9],
@@ -331,10 +421,10 @@ if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-b
     model_description = "Autonomy embeddings predicting PWB and SWLS, N = 144"
   )
    # Save the model output to an RDS file
-  saveRDS(Autonomy_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/autonomy_subscale.RDS")
+  saveRDS(Autonomy_subscale,rds_file_path)
 } else {
   # If the RDS file already exists, load the data from it
-  Autonomy_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/autonomy_subscale.RDS")
+  Autonomy_subscale <- readRDS(rds_file_path)
 }
 filtered_predictions <- na.omit(Autonomy_subscale$predictions[1:8])
 Autonomy_subscale_predictions <- as.data.frame(filtered_predictions)
@@ -407,6 +497,9 @@ Autonomy_heat
 ### Autonomy Words Related to Overall Well-being
 
 ```{r eval=FALSE, fig.height=7, fig.width=7, include=FALSE}
+
+
+
 if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/SDP/Autonomy_SWLS_PWB_SDP.RDS")) {
   # If the file doesn't exist, perform the analysis
  Autonomy_SWLS_PWB <- textProjection(
@@ -717,7 +810,9 @@ ggplot(plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = conf.int_h
 # Text only Responses {.tabset}
 
 ```{r}
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/data/LP2_Wellbeing-Prediction_Behavioral.csv")
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
+
+df = read.csv(file.path(data_dir,"data/LP2_Wellbeing-Prediction_Behavioral.csv"))
 
 ###turn to wide format 
 
@@ -726,7 +821,8 @@ df = df %>%
    spread(key = measure, value = score)
 
 ###prep the text data 
-text <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/data_text/wellbeing-prediction-text-long.csv")
+
+text = read.csv(file.path(data_dir,"data_text/wellbeing-prediction-text-long.csv"))
 
 ###prep the text data 
 
@@ -755,7 +851,7 @@ df <- df %>%
   filter(pID %in% text_embed_pids)
 
 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/embeddings/Text_Only_wellbeing-prediction-embeddings.rds")
+embeddings <- readRDS(file.path(data_dir,"embeddings/Text_Only_wellbeing-prediction-embeddings.rds"))
 
 ```
 
@@ -813,7 +909,10 @@ table <- function(correlation_data) {
 
 ```{r}
 
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/Text_Only_SWLS_subscale.RDS")) {
+rds_file_path <- file.path(data_dir, "models/prelim-analyses/Text_Only_SWLS_subscale.RDS") #update with the path to each model
+
+
+if (!file.exists(rds_file_path)) {
   SWLS_subscale <- textTrainLists(
     x = embeddings$texts$SWLS, #use satifaction with life
     y = df[2:9],
@@ -825,10 +924,10 @@ if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-b
     model_description = "SWLS embeddings predicting PWB and SWL; Text ONLY; N = 144"
   )
    # Save the model output to an RDS file
-  saveRDS(SWLS_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/Text_Only_SWLS_subscale.RDS")
+  saveRDS(SWLS_subscale, rds_file_path)
 } else {
   # If the RDS file already exists, load the data from it
-  SWLS_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/Text_Only_SWLS_subscale.RDS")
+  SWLS_subscale <- readRDS(rds_file_path)
 }
 
 
@@ -878,7 +977,7 @@ table(SWLS_subscale_results)
 
 ### Heatmaps
 
-```{r text-only-swls-heat}
+```{r text-only-swls-heat, fig.height=6, fig.width=8}
 
 SWLS_subscale_results <- SWLS_subscale_results %>%
   mutate(
@@ -913,7 +1012,11 @@ SWLS_heat
 ### Models
 
 ```{r}
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/Text_Only_autonomy_subscale.RDS")) {
+
+rds_file_path <- file.path(data_dir, "models/prelim-analyses/Text_Only_autonomy_subscale.RDS") #update with the path to each model
+
+
+if (!file.exists(rds_file_path)) {
   Autonomy_subscale <- textTrainLists(
     x = embeddings$texts$Autonomy, #use satifaction with life
     y = df[2:9],
@@ -925,10 +1028,10 @@ if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-b
     model_description = "Autonomy embeddings predicting PWB and SWLS, N = 144"
   )
    # Save the model output to an RDS file
-  saveRDS(Autonomy_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/Text_Only_autonomy_subscale.RDS")
+  saveRDS(Autonomy_subscale, rds_file_path)
 } else {
   # If the RDS file already exists, load the data from it
-  Autonomy_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/Text_Only_autonomy_subscale.RDS")
+  Autonomy_subscale <- readRDS(rds_file_path)
 }
 filtered_predictions <- na.omit(Autonomy_subscale$predictions[1:8])
 Autonomy_subscale_predictions <- as.data.frame(filtered_predictions)
@@ -1060,16 +1163,9 @@ calculate_and_store_rmse <- function(result_list) {
     # Add the data frame to results_list
     results_list[[model_name]] <- result_df
   }
-  
-  # Combine individual data frames into a single data frame
-  final_results_df <- do.call(rbind, results_list)
-  
-  return(final_results_df)
 }
-
-# Initialize an empty list to store results
-results <- list()
-
+  
+  # a
 
 table <- function(correlation_data) {
   # Convert the character columns to factors for better rendering
@@ -1242,7 +1338,7 @@ calculate_and_store_rmse <- function(column_name, model_names, actual_values, pr
   
   return(results_list)
 }
-
+  
 # Initialize an empty list to store results
 results <- list()
 
@@ -1278,7 +1374,9 @@ table <- function(correlation_data) {
 
 
 ```{r}
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/data/LP2_Wellbeing-Prediction_Behavioral.csv")
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
+
+df = read.csv(file.path(data_dir,"data/LP2_Wellbeing-Prediction_Behavioral.csv"))
 
 ###turn to wide format 
 
@@ -1287,7 +1385,8 @@ df = df %>%
    spread(key = measure, value = score)
 
 ###prep the text data 
-text <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/data_text/wellbeing-prediction-text-long.csv")
+
+text = read.csv(file.path(data_dir,"data_text/wellbeing-prediction-text-long.csv"))
 
 text = text %>% 
   select(pID,prompt,text,type) %>% 
@@ -1318,7 +1417,9 @@ df <- df %>%
 #  na.rm = TRUE,
 #  locale = "en_US")
 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/embeddings/Audio_Only_wellbeing-prediction-embeddings.rds")
+
+embeddings <- readRDS(file.path(data_dir,"embeddings/Audio_Only_wellbeing-prediction-embeddings.rds"))
+
 ```
 
 ## Satisfaction with Life {.tabset}
@@ -1327,7 +1428,10 @@ embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/
 
 ```{r}
 
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/Audio_Only_SWLS_subscale.RDS")) {
+rds_file_path <- file.path(data_dir, "models/prelim-analyses/Audio_Only_SWLS_subscale.RDS") #update with the path to each model
+
+
+if (!file.exists(rds_file_path)) {
   SWLS_subscale <- textTrainLists(
     x = embeddings$texts$SWLS, #use satifaction with life
     y = df[2:9],
@@ -1339,10 +1443,10 @@ if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-b
     model_description = "SWLS embeddings predicting PWB and SWL; Text ONLY; N = 144"
   )
    # Save the model output to an RDS file
-  saveRDS(SWLS_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/Audio_Only_SWLS_subscale.RDS")
+  saveRDS(SWLS_subscale,rds_file_path)
 } else {
   # If the RDS file already exists, load the data from it
-  SWLS_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/Audio_Only_SWLS_subscale.RDS")
+  SWLS_subscale <- readRDS(rds_file_path)
 }
 
 
@@ -1353,13 +1457,12 @@ SWLS_subscale_predictions <- as.data.frame(filtered_predictions)
 models <- c(colnames(SWLS_subscale$predictions[1:8]))
 
 
-###prep the data to calculate RMSE values 
-
 data = df %>% 
   select(-pID) 
 
-results = list()
 column_names = colnames(data)
+
+results <- list()
 for (column_name in column_names) {
   result <- calculate_and_store_rmse(
     column_name = column_name,
@@ -1373,6 +1476,9 @@ SWLS_rmse <- results %>%
   bind_rows() %>%
   distinct()
 }
+
+
+
 
 # Associate RMSE with subscale results
 SWLS_subscale_results <- head(SWLS_subscale$results, 8)
@@ -1428,7 +1534,11 @@ SWLS_heat
 ### Models
 
 ```{r}
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/Audio_Only_autonomy_subscale.RDS")) {
+
+rds_file_path <- file.path(data_dir, "models/prelim-analyses/Audio_Only_Autonomy_subscale.RDS") #update with the path to each model
+
+
+if (!file.exists(rds_file_path)) {
   Autonomy_subscale <- textTrainLists(
     x = embeddings$texts$Autonomy, #use satifaction with life
     y = df[2:9],
@@ -1440,10 +1550,10 @@ if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-b
     model_description = "Autonomy embeddings predicting PWB and SWLS, N = 144"
   )
    # Save the model output to an RDS file
-  saveRDS(Autonomy_subscale, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/Audio_Only_autonomy_subscale.RDS")
+  saveRDS(Autonomy_subscale, rds_file_path)
 } else {
   # If the RDS file already exists, load the data from it
-  Autonomy_subscale <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/prelim-analyses/Audio_Only_autonomy_subscale.RDS")
+  Autonomy_subscale <- readRDS(rds_file_path)
 }
 filtered_predictions <- na.omit(Autonomy_subscale$predictions[1:8])
 Autonomy_subscale_predictions <- as.data.frame(filtered_predictions)
