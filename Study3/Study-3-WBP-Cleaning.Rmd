@@ -176,6 +176,9 @@ scored = scorequaltrics::score_questionnaire(data_surveys, scoring_data_long, SI
 
 
 write.csv(scored,"/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/data/PROLIFIC_LP2_Wellbeing-Prediction_Behavioral.csv")
+
+scored = read_csv('/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/PROLIFIC_LP2_Wellbeing-Prediction_Behavioral.csv')
+
 ```
 
 ## Tidy Text Data

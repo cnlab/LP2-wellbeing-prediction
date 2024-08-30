@@ -195,8 +195,6 @@ alpha_results %>%
 
 ```
 
-
-
 # Question 1
 
 > Can language‑based assessments of participants’ well-being predict components of self-reported well-being? 
@@ -501,7 +499,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 
 ```
 
@@ -528,7 +526,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Satisfaction with life responses can  distinguish Satisfaction with Life scores from Psychological Well-being scores (r = 0.624 verus 0.403, bootstrapped **p** < .05)
+> Satisfaction with life responses can  distinguish Satisfaction with Life scores from Psychological Well-being scores (r = 0.624 verus 0.403, bootstrapped **p** = `r p_value`)
 
 ## Autonomy
 
@@ -575,7 +573,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -603,7 +601,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> SWLS responses cannot differentiate between Satisfaction with life and autonomy responses (r = 0.624 verus 0.131, bootstrapped **p** > 0.05)
+> SWLS responses cannot differentiate between Satisfaction with life and autonomy responses (r = 0.624 verus 0.131, bootstrapped **p**  = `r p_value`)
 
 ## Personal Growth 
 
@@ -650,7 +648,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -678,7 +676,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> SWLS responses cannot differentiate between Satisfaction with life and personal growth responses (r = 0.624 verus 0.117, bootstrapped **p** > 0.05) 
+> SWLS responses cannot differentiate between Satisfaction with life and personal growth responses (r = 0.624 verus 0.117, bootstrapped **p** = `r p_value`) 
 
 ## Positive Relationships 
 
@@ -725,7 +723,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -753,7 +751,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> SWLS responses cannot differentiate between Satisfaction with life and positive relationship responses (r = 0.624 verus 0.153, bootstrapped **p** > 0.05)
+> SWLS responses cannot differentiate between Satisfaction with life and positive relationship responses (r = 0.624 verus 0.153, bootstrapped **p** = `r p_value`)
 
 ## Purpose
 
@@ -800,7 +798,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -828,7 +826,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> SWLS responses cannot differentiate between Satisfaction with life and purpose in life (r = 0.624 verus 0.224, bootstrapped **p** > 0.05)
+> SWLS responses cannot differentiate between Satisfaction with life and purpose in life (r = 0.624 verus 0.224, bootstrapped **p** = `r p_value`)
 
 ## Self-Acceptance
 
@@ -875,7 +873,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -903,7 +901,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Satisfaction with Life responses cannot distinguish Satisfaction with Life scores from Self-Acceptance scores (r = 0.624 verus 0.501, bootstrapped **p** > 0.05)
+> Satisfaction with Life responses cannot distinguish Satisfaction with Life scores from Self-Acceptance scores (r = 0.624 verus 0.501, bootstrapped **p** = `r p_value`)
 
 ## Environmental Mastery
 
@@ -950,9 +948,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
-
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 ```{r}
@@ -978,7 +974,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Satisfaction with life responses cannot distinguish satisfaction with life scores from Environmental Mastery scores (r = 0.624 verus 0.44, bootstrapped **p** > 0.05)
+> Satisfaction with life responses cannot distinguish satisfaction with life scores from Environmental Mastery scores (r = 0.624 verus 0.44, bootstrapped **p** = `r p_value`)
 
 # Can Autonomy language assessments can Differentiate Autonomy from... {.tabset}
 
@@ -1034,6 +1030,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 
 ```
 
@@ -1061,7 +1058,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Autonomy responses cannot distinguish Autonomy scores from self-acceptance scores (r = 0.413 verus 0.175, bootstrapped **p** > 0.05)
+> Autonomy responses cannot distinguish Autonomy scores from self-acceptance scores (r = 0.413 verus 0.175, bootstrapped **p** = `r p_value`)
 
 ## Positive Relationships 
 
@@ -1108,7 +1105,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -1135,7 +1132,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Autonomy responses cannot distinguish Autonomy scores from Positive Relationship scores (r = 0.413 verus 0.019, bootstrapped **p** > 0.05)
+> Autonomy responses cannot distinguish Autonomy scores from Positive Relationship scores (r = 0.413 verus 0.019, bootstrapped **p** = `r p_value`)
 
 ## Environmental Mastery 
 
@@ -1182,7 +1179,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -1209,7 +1206,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Autonomy responses cannot distinguish Autonomy scores from environmental mastery scores (r = 0.413 verus 0.17, bootstrapped **p** > 0.05)
+> Autonomy responses cannot distinguish Autonomy scores from environmental mastery scores (r = 0.413 verus 0.17, bootstrapped **p** = `r p_value`)
 
 ## Personal Growth
 
@@ -1256,7 +1253,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -1283,7 +1280,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Autonomy responses cannot distinguish Autonomy scores from personal growth scores (r = 0.413 verus 0.06, bootstrapped **p** > 0.05)
+> Autonomy responses cannot distinguish Autonomy scores from personal growth scores (r = 0.413 verus 0.06, bootstrapped **p** = `r p_value`)
 
 ## Purpose
 
@@ -1330,7 +1327,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -1357,7 +1354,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Autonomy responses cannot distinguish Autonomy scores from purpose in life scores (r = 0.413 verus 0.032, bootstrapped **p** > 0.05)
+> Autonomy responses cannot distinguish Autonomy scores from purpose in life scores (r = 0.413 verus 0.032, bootstrapped **p** = `r p_value`)
 
 ## Psychological Well-being
 
@@ -1404,7 +1401,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 ```{r}
@@ -1430,7 +1427,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Autonomy responses cannot distinguish Autonomy scores from Psychological Well-being scores (r = 0.413 verus 0.106, bootstrapped **p** > 0.05)
+> Autonomy responses cannot distinguish Autonomy scores from Psychological Well-being scores (r = 0.413 verus 0.106, bootstrapped **p** = `r p_value`)
 
 ## Satisfaction with Life
 
@@ -1477,7 +1474,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 ```{r}
@@ -1503,7 +1500,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Autonomy responses can marginally distinguish Autonomy scores from Satisfaction with Life scores (r = 0.413 verus 0.207, bootstrapped **p** > 0.05)
+> Autonomy responses can marginally distinguish Autonomy scores from Satisfaction with Life scores (r = 0.413 verus 0.207, bootstrapped **p** = `r p_value`)
 
 # Are the two models' correlations significantly different {.tabset}
 
@@ -1558,7 +1555,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 
 ```
 
@@ -1585,7 +1582,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predictiing psychological well-being (r = 0.403 vs. 0.106, bootstrapped p > 0.05)
+> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predictiing psychological well-being (r = 0.403 vs. 0.106, bootstrapped **p** = `r p_value`)
 
 ## Autonomy
 
@@ -1632,7 +1629,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -1659,7 +1656,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predictiing autonomy scores (r = 0.131 vs. 0.413, bootstrapped p > 0.05)
+> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predictiing autonomy scores (r = 0.131 vs. 0.413, bootstrapped **p** = `r p_value`)
 
 ## Personal Growth 
 
@@ -1706,7 +1703,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 ```{r}
@@ -1732,7 +1729,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predictiing personal growth scores (r = 0.117 vs. 0.06, bootstrapped p > 0.05)
+> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predictiing personal growth scores (r = 0.117 vs. 0.06, bootstrapped **p** = `r p_value`)
 
 ## Positive Relationships 
 
@@ -1779,7 +1776,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -1807,7 +1804,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predictiing positive relationship scores (r = 0.153 vs. 0.019, bootstrapped p > 0.05)
+> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predictiing positive relationship scores (r = 0.153 vs. 0.019, bootstrapped **p** = `r p_value`)
 
 ## Purpose
 
@@ -1854,7 +1851,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -1882,7 +1879,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predictiing purpose in life scores (r = 0.224 vs. -0.032, bootstrapped p > 0.05)
+> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predictiing purpose in life scores (r = 0.224 vs. -0.032, bootstrapped **p** = `r p_value`)
 
 ## Self-Acceptance
 
@@ -1929,7 +1926,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 ```
 
 
@@ -1957,7 +1954,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predictiing self-acceptance scores (r = 0.501 vs. 0.175, bootstrapped p > 0.05)
+> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predictiing self-acceptance scores (r = 0.501 vs. 0.175, bootstrapped **p**  = `r p_value`)
 
 ## Environmental Mastery
 
@@ -2004,8 +2001,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 
 ```
 
@@ -2032,7 +2028,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predicting environmental mastery scores (r = 0.44 vs. 0.17, bootstrapped p > 0.05)
+> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predicting environmental mastery scores (r = 0.44 vs. 0.17, bootstrapped **p** = `r p_value`)
 
 ## Satisfaction with life 
 
@@ -2080,8 +2076,7 @@ comparison_df_shuffled <- tibble::tibble(
 
 # Calculate percentage of absolute differences greater than zero
 percentage_greater_than_zero_shuffled <- mean(comparison_df_shuffled$correlation_difference > 0) * 100
-
-
+p_value <- (100 - percentage_greater_than_zero_shuffled) / 100
 
 ```
 
@@ -2108,7 +2103,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   plot_aes
 ```
 
-> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predicting satisfaction with life scores (r = 0.624 vs. 0.207, p > 0.05)
+> Satisfaction with life responses are not signifcantly different from Autonomy correlations when predicting satisfaction with life scores (r = 0.624 vs. 0.207, **p** = `r p_value`)
 
 # Supervised Dimension Projections {.tabset}
 
