@@ -178,6 +178,40 @@ scored = scorequaltrics::score_questionnaire(data_surveys, scoring_data_long, SI
 write.csv(scored,"/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/data/PROLIFIC_LP2_Wellbeing-Prediction_Behavioral.csv")
 ```
 
+## Get item level scores
+
+```{r}
+wbp_items = data_surveys %>% 
+  select(pID,survey_name,item,value) %>% 
+  filter(str_starts(item, "PWB_") | str_starts(item, "SWLS_")) %>% 
+  mutate(value = if_else(item %in% c("PWB_4", "PWB_5", "PWB_6", "PWB_7", "PWB_10", "PWB_14", "PWB_15", "PWB_16"), 
+                         as.character(8 - as.numeric(value)), value)) %>% 
+  spread(key = item, value = value) %>% 
+  rename(
+    Autonomy_1 = PWB_15,
+    Autonomy_2 = PWB_17,
+    Autonomy_3 = PWB_18,
+    environmental_mastery_1 = PWB_4,
+    environmental_mastery_2 = PWB_8,
+    environmental_mastery_3 = PWB_9,
+    personal_growth_1 = PWB_11,
+    personal_growth_2 = PWB_12,
+    personal_growth_3 = PWB_14,
+    positive_relations_1 = PWB_6,
+    positive_relations_2 = PWB_13,
+    positive_relations_3 = PWB_16,
+    purpose_1 = PWB_3,
+    purpose_2 = PWB_7,
+    purpose_3 = PWB_10,
+    self_acceptance_1 = PWB_1,
+    self_acceptance_2 = PWB_2,
+    self_acceptance_3 = PWB_5
+  )
+
+write.csv(wbp_items,"/Users/stevenmesquiti/Downloads/Prolific_wellbeing-prediction-items.csv")
+```
+
+
 ## Tidy Text Data
 
 ```{r}

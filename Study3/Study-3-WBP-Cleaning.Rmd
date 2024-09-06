@@ -368,11 +368,6 @@ data_demo_unique <- demo %>%
          `ses_degree` = as.factor(`ses-edu`),
          `income` = as.factor(`income`))
 
-
-
-
-
-
 ```
 
 ```{r}

@@ -132,7 +132,7 @@ ids = surveys_tidy %>%
   left_join(., unique(select(surveys_tidy, id, ResponseId)))
 
 ### attach IDs
-xdata = surveys_tidy %>%
+data = surveys_tidy %>%
   left_join(., ids) 
 
 data_surveys = data %>%
@@ -141,12 +141,12 @@ data_surveys = data %>%
   filter(!is.na(value)) %>%
   filter(!grepl("Click|Submit|Count|consent|screen|attention|therapy|age|race|ses_|income|practice|hispanic|feedback|first_gen|year|parental", item)) %>%
   filter(grepl("SWLS|PWB|valence|personal|Autonomy|OE|reflection_useful_1|study_exp_helpful", item)) %>%
-  select(id, pID, Reflection_Type,survey_name,item, value) 
+  select(pID, Reflection_Type,survey_name,item, value) 
 
 ###can save this to get the item-level responses
 
 ###extract the text data
-data_text = data_surveys %>% x
+data_text = data_surveys %>% 
   filter(Reflection_Type == "Txext") %>%
   select(pID,item,value) %>% 
   filter(grepl("-Text", item)) %>% 
@@ -286,6 +286,42 @@ help_useful <- data_surveys %>%
 
 write_csv(help_useful,"/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/WB_help_useful.csv")
 
+```
+
+## Get item level scores
+
+```{r}
+sona_wbp_items <- data_surveys %>% 
+  select(pID, Reflection_Type, survey_name, item, value) %>% 
+  filter(str_starts(item, "PWB_") | str_starts(item, "SWLS_")) %>% 
+  mutate(value = if_else(item %in% c("PWB_4", "PWB_5", "PWB_6", "PWB_7", "PWB_10", "PWB_14", "PWB_15", "PWB_16"),
+                         as.character(8 - as.numeric(value)), value)) %>% 
+  mutate(value = as.numeric(value)) %>% 
+  group_by(pID, Reflection_Type, survey_name, item) %>% 
+  summarize(value = mean(value, na.rm = TRUE), .groups = 'drop') %>% 
+  pivot_wider(names_from = item, values_from = value) %>% 
+rename(
+    Autonomy_1 = PWB_15,
+    Autonomy_2 = PWB_17,
+    Autonomy_3 = PWB_18,
+    environmental_mastery_1 = PWB_4,
+    environmental_mastery_2 = PWB_8,
+    environmental_mastery_3 = PWB_9,
+    personal_growth_1 = PWB_11,
+    personal_growth_2 = PWB_12,
+    personal_growth_3 = PWB_14,
+    positive_relations_1 = PWB_6,
+    positive_relations_2 = PWB_13,
+    positive_relations_3 = PWB_16,
+    purpose_1 = PWB_3,
+    purpose_2 = PWB_7,
+    purpose_3 = PWB_10,
+    self_acceptance_1 = PWB_1,
+    self_acceptance_2 = PWB_2,
+    self_acceptance_3 = PWB_5
+  )
+
+write.csv(sona_wbp_items,"/Users/stevenmesquiti/Downloads/SONA_wellbeing-prediction-items.csv")
 ```
 
 ### demos
