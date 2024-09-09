@@ -141,6 +141,9 @@ affect <- df %>%
 
 model_dir = "/Users/sm9518/Library/CloudStorage/Dropbox"
 
+rds_file_path = 
+
+
 rds_file_path <- file.path(model_dir, "/LP2-wellbeing-pred/LP2-wellbeing-prediction/item_level_analyses/affect_item_output.RDS") #update with the path to each model
 
 if (!file.exists(rds_file_path)) {

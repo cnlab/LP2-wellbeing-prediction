@@ -6,7 +6,7 @@ pacman::p_load(tidyverse,job, text,install = T)
 textrpp_install()
 textrpp_initialize()
 
-now begin to create the embeddings 
+#now begin to create the embeddings 
 
 #check to see that bert-large-uncased is available locally. if not, you'll need to download it but that should happen automatically... 
 #if you'd like to use another model you can check hugging face to see what's available 
@@ -36,4 +36,4 @@ job::job({
 }
 )
 
-\
+

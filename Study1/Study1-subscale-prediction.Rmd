@@ -754,8 +754,6 @@ relations_heat <- ggplot(relations_results, aes(x = prompt, y = outcome, fill = 
               color = "black", size = 4, vjust = -0.5) + plot_aes
 
 relations_heat
-
-
 ```
 
 # All subscales Heatmap
