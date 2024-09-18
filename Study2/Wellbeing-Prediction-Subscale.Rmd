@@ -289,6 +289,8 @@ SWLS_subscale_results <-
                      NA))
 
 table(SWLS_subscale_results)
+
+saveRDS(SWLS_subscale_results,file.path(data_dir,"models/prelim-analyses/SWLS_subscale_results.RDS"))
 ```
 
 ### Heatmaps
@@ -465,7 +467,7 @@ Autonomy_subscale_results <-
     outcome = ifelse(grepl("embeddings\\$texts\\$Autonomy_", descriptions), 
                      gsub(".*Autonomy_", "", descriptions),
                      NA))
-
+saveRDS(Autonomy_subscale_results,file.path(data_dir,"models/prelim-analyses/Autonomy_subscale_results.RDS"))
 ```
 
 ### Heatmaps 
@@ -485,7 +487,6 @@ Autonomy_heat =  ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
   geom_tile(color = "white") +
   geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -779,6 +780,9 @@ SWLS_results<-
 ### bind 
 
 all_effects = rbind(autonomy_results,SWLS_results)
+
+saveRDS(all_effects,file.path(data_dir,"models/prelim-analyses/study2_all_effects.RDS"))
+
 
 ### subset 
 

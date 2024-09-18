@@ -1,0 +1,1923 @@
+---
+title: "Study 1: LIWC-Analyses"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "LIWC/prompts")
+options(scipen=999)
+```
+
+
+```{r load packages and installize conda environment, include=FALSE}
+if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
+library(pacman)
+#setwd("~/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/models")
+
+
+
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,brms,install = T) 
+# Set-up an environment with text-required python packages
+```
+
+```{r}
+palette = c("#197278", "#283d3b", "#9CC5A1", "#ADA7C9", "#BB7A5E", "#6195C6", "#4D4861","#772e25", "#c44536", "#ee9b00", "#B0B2B8")
+palette_type = c("#c44536", "#ee9b00", "#197278")
+
+plot_aes = theme_minimal() +
+  theme(legend.position = "none",
+        text = element_text(family = "Futura Medium"),
+        axis.ticks.y = element_blank())
+```
+
+```{r clean-data}
+data_dir = "/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
+data = read_csv(file.path(data_dir, "data_prediction/surveys_scored/LP2_Behavioral_and_Text_Long_format.csv"))
+
+data_cleaned <- data %>%
+  select(-4) %>% # Drop superfluous variables
+  extract(Prompt, "Prompt", "Q[0-9]{1}..(.*_[1-4]{1})..Transcription") %>%
+  filter(!is.na(Text) & WC >= 25) %>%
+  extract(Prompt, c("prompt", "number"), "(.*)_([1-4]{1})") %>%
+  filter(grepl("^pre_PWB", Scale)) %>% # Select observations starting with "pre_PWB"
+  select(-Text, -Segment)
+
+
+unique_prompts <- unique(data_cleaned$prompt)
+
+# Create separate dataframes based on each unique prompt
+for (prompt_value in unique_prompts) {
+  # Create a new dataframe for each prompt
+  assign(paste0(prompt_value), subset(data_cleaned, prompt == prompt_value))
+}    
+
+
+dataframes_list <- list(autonomy, personal_growth, positive_affect, purpose, relationships, self_acceptance)
+
+# Use purrr::map to apply spread function to each dataframe
+dataframes_list <- map(dataframes_list, ~spread(.x, Scale, value))
+
+# Save the updated dataframes with the same names
+
+### treating each individual prompt as a separate observation 
+
+autonomy <- dataframes_list[[1]]
+personal_growth <- dataframes_list[[2]]
+positive_affect <- dataframes_list[[3]]
+purpose <- dataframes_list[[4]]
+relationships <- dataframes_list[[5]]
+self_acceptance <- dataframes_list[[6]]
+```
+
+# LIWC Variables by Prompt {.tabset}
+
+## All Prompt Topics Collapsed {.tabset}
+
+```{r}
+data_dir = "/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
+data = read_csv(file.path(data_dir, "data_prediction/surveys_scored/LP2_Behavioral_and_Text_Long_format.csv"))
+
+data_cleaned <- data %>%
+  select(-4) %>% # Drop superfluous variables
+  extract(Prompt, "Prompt", "Q[0-9]{1}..(.*_[1-4]{1})..Transcription") %>%
+  filter(!is.na(Text) & WC >= 25) %>%
+  extract(Prompt, c("prompt", "number"), "(.*)_([1-4]{1})") %>%
+  filter(grepl("^pre_PWB", Scale)) %>% # Select observations starting with "pre_PWB"
+  select(-Text, -Segment)
+
+prompts <- data_cleaned %>%
+  group_by(pID, Scale, prompt) %>%
+  summarize(
+    avg_WC = mean(WC),
+    avg_i = mean(i),
+    avg_we = mean(we),
+    avg_tone_pos = mean(tone_pos),
+    avg_tone_neg = mean(tone_neg),
+    avg_cogproc = mean(cogproc),
+    avg_certitude = mean(certitude),
+    avg_focuspast = mean(focuspast),
+    avg_focuspresent = mean(focuspresent),
+    avg_focusfuture = mean(focusfuture)
+  )
+
+
+```
+
+### Word Count 
+
+```{r}
+prompts_median_wc = prompts %>%
+  group_by(prompt) %>%
+  summarize(median = median(avg_WC))
+
+prompts %>%
+  ggplot(aes(x = avg_WC, y = prompt, fill = prompt)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = prompts_median_wc, aes(y = prompt, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Word Count", y = "Prompt Type") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none")
+
+```
+
+### I-usage 
+
+```{r}
+prompts_median = prompts %>%
+  group_by(prompt) %>%
+  summarize(median = median(avg_i))
+
+prompts %>%
+  ggplot(aes(x = avg_i, y = prompt, fill = prompt)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = prompts_median, aes(y = prompt, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "I-usage", y = "Prompt Type") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none")
+```
+
+### We-usage 
+
+```{r}
+prompts_median = prompts %>%
+  group_by(prompt) %>%
+  summarize(median = median(avg_we))
+
+prompts %>%
+  ggplot(aes(x = avg_we, y = prompt, fill = prompt)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = prompts_median, aes(y = prompt, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "We-usage", y = "Prompt Type") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none")
+```
+
+### Positive Sentiment 
+
+```{r}
+
+prompts_median = prompts %>%
+  group_by(prompt) %>%
+  summarize(median = median(avg_tone_pos))
+
+prompts %>%
+  ggplot(aes(x = avg_tone_pos, y = prompt, fill = prompt)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = prompts_median, aes(y = prompt, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Positive Sentiment", y = "Prompt Type") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none")
+```
+
+### Negative Sentiment
+
+```{r}
+prompts_median = prompts %>%
+  group_by(prompt) %>%
+  summarize(median = median(avg_tone_neg))
+
+prompts %>%
+  ggplot(aes(x = avg_tone_pos, y = prompt, fill = prompt)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = prompts_median, aes(y = prompt, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Negative Sentiment", y = "Prompt Type") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none")
+```
+
+### Cognitive Processing 
+
+```{r}
+prompts_median = prompts %>%
+  group_by(prompt) %>%
+  summarize(median = median(avg_cogproc))
+
+prompts %>%
+  ggplot(aes(x = avg_cogproc, y = prompt, fill = prompt)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = prompts_median, aes(y = prompt, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Cognitive Processing", y = "Prompt Type") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none")
+```
+
+### Certainty 
+
+```{r}
+prompts_median = prompts %>%
+  group_by(prompt) %>%
+  summarize(median = median(avg_certitude))
+
+prompts %>%
+  ggplot(aes(x = avg_certitude, y = prompt, fill = prompt)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = prompts_median, aes(y = prompt, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Certainty", y = "Prompt Type") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none")
+```
+
+### Focus Past 
+
+```{r}
+prompts_median = prompts %>%
+  group_by(prompt) %>%
+  summarize(median = median(avg_focuspast))
+
+prompts %>%
+  ggplot(aes(x = avg_focuspast, y = prompt, fill = prompt)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = prompts_median, aes(y = prompt, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Past", y = "Prompt Type") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none")
+```
+
+### Focus Present 
+
+```{r}
+prompts_median = prompts %>%
+  group_by(prompt) %>%
+  summarize(median = median(avg_focuspresent))
+
+prompts %>%
+  ggplot(aes(x = avg_focuspresent, y = prompt, fill = prompt)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = prompts_median, aes(y = prompt, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Present", y = "Prompt Type") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none")
+```
+
+### Focus Future
+
+```{r}
+prompts_median = prompts %>%
+  group_by(prompt) %>%
+  summarize(median = median(avg_focusfuture))
+
+prompts %>%
+  ggplot(aes(x = avg_focusfuture, y = prompt, fill = prompt)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = prompts_median, aes(y = prompt, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Future", y = "Prompt Type") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none")
+```
+
+
+## Autonomy {.tabset}
+
+```{r}
+autonomy <- autonomy %>% 
+  mutate(number = recode(number, 
+                       "1" = "1.In what ways do you judge yourself
+                         by what you think is important and/or what others think is important?",
+                         "3" = "3.In what ways are your decisions influenced (or not) by what others are doing?",
+                         "4" = "4.Describe a time when you chose to voice (or not voice) your own opinion on a controversial matter."))
+```
+
+### Word Count 
+
+```{r}
+
+autonomy_median = autonomy %>%
+  group_by(number) %>%
+  summarize(median = median(WC))
+
+autonomy %>%
+  ggplot(aes(x = WC, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = autonomy_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Word Count", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+```
+
+
+
+### I-usage
+
+```{r}
+
+autonomy_median = autonomy %>%
+  group_by(number) %>%
+  summarize(median = median(i))
+
+autonomy %>%
+  ggplot(aes(x = i, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = autonomy_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "I-usage (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+
+```
+
+### We-usage
+
+```{r}
+
+autonomy_median = autonomy %>%
+  group_by(number) %>%
+  summarize(median = median(we))
+
+autonomy %>%
+  ggplot(aes(x = we, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = autonomy_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "We-usage (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+
+```
+
+### Positive Sentiment
+
+```{r}
+autonomy_median = autonomy %>%
+  group_by(number) %>%
+  summarize(median = median(tone_pos))
+
+autonomy %>%
+  ggplot(aes(x = tone_pos, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = autonomy_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Positive Sentiment (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Negative Sentiment
+
+```{r}
+autonomy_median = autonomy %>%
+  group_by(number) %>%
+  summarize(median = median(tone_neg))
+
+autonomy %>%
+  ggplot(aes(x = tone_neg, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = autonomy_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Negative Sentiment Words (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Cognitive Processing (working through)
+
+```{r}
+autonomy_median = autonomy %>%
+  group_by(number) %>%
+  summarize(median = median(cogproc))
+
+autonomy %>%
+  ggplot(aes(x = cogproc, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = autonomy_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Cognititve Processing (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Certainty 
+
+```{r}
+autonomy_median = autonomy %>%
+  group_by(number) %>%
+  summarize(median = median(certitude))
+
+autonomy %>%
+  ggplot(aes(x = certitude, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = autonomy_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Certainty (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+
+### Focus Past 
+
+```{r}
+
+autonomy_median = autonomy %>%
+  group_by(number) %>%
+  summarize(median = median(focuspast))
+
+autonomy %>%
+  ggplot(aes(x = focuspast, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = autonomy_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Past (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Present 
+
+```{r}
+autonomy_median = autonomy %>%
+  group_by(number) %>%
+  summarize(median = median(focuspresent))
+
+autonomy %>%
+  ggplot(aes(x = focuspresent, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = autonomy_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Present (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Future
+
+```{r}
+autonomy_median = autonomy %>%
+  group_by(number) %>%
+  summarize(median = median(focusfuture))
+
+autonomy %>%
+  ggplot(aes(x = focusfuture, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = autonomy_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Future (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+## Affect {.tabset}
+
+```{r}
+
+positive_affect <- positive_affect %>% 
+dplyr:: mutate(number = recode(number, 
+                         "1" = "1.Describe a recent time when you felt calm or at ease.",
+                         "2" = "2.Describe a recent time when you felt joyful or excited.",
+                         "3" = "3.Describe a recent time when you felt interested."),)
+```
+
+
+### Word Count
+
+```{r}
+positive_affect_median = positive_affect %>%
+  group_by(number) %>%
+  summarize(median = median(WC))
+
+positive_affect %>%
+  ggplot(aes(x = WC, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = positive_affect_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Word Count", y = "PrompT Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### I-usage 
+
+```{r}
+
+positive_affect_median = positive_affect %>%
+  group_by(number) %>%
+  summarize(median = median(i))
+
+positive_affect %>%
+  ggplot(aes(x = i, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = positive_affect_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "I-usage (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### We-usage
+
+```{r}
+
+positive_affect_median = positive_affect %>%
+  group_by(number) %>%
+  summarize(median = median(we))
+
+positive_affect %>%
+  ggplot(aes(x = we, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = positive_affect_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "We-usage (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Positive Sentiment
+
+```{r}
+positive_affect_median = positive_affect %>%
+  group_by(number) %>%
+  summarize(median = median(tone_pos))
+
+positive_affect %>%
+  ggplot(aes(x = tone_pos, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = positive_affect_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Positive Sentiment (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Negative Sentiment 
+
+```{r}
+positive_affect_median = positive_affect %>%
+  group_by(number) %>%
+  summarize(median = median(tone_neg))
+
+positive_affect %>%
+  ggplot(aes(x = tone_neg, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = positive_affect_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Negative Sentiment Words (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Cognitive Processing (working through)
+
+```{r}
+positive_affect_median = positive_affect %>%
+  group_by(number) %>%
+  summarize(median = median(cogproc))
+
+positive_affect %>%
+  ggplot(aes(x = cogproc, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = positive_affect_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Cognititve Processing (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+```
+
+### Certainty 
+
+```{r}
+positive_affect_median = positive_affect %>%
+  group_by(number) %>%
+  summarize(median = median(certitude))
+
+positive_affect %>%
+  ggplot(aes(x = certitude, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = positive_affect_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Certainty (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Past 
+
+```{r}
+
+positive_affect_median = positive_affect %>%
+  group_by(number) %>%
+  summarize(median = median(focuspast))
+
+positive_affect %>%
+  ggplot(aes(x = focuspast, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = positive_affect_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Past (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Present 
+
+```{r}
+positive_affect_median = positive_affect %>%
+  group_by(number) %>%
+  summarize(median = median(focuspresent))
+
+positive_affect %>%
+  ggplot(aes(x = focuspresent, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = positive_affect_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Present (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+```
+
+### Focus Future 
+
+```{r}
+positive_affect_median = positive_affect %>%
+  group_by(number) %>%
+  summarize(median = median(focusfuture))
+
+positive_affect %>%
+  ggplot(aes(x = focusfuture, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = positive_affect_median, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Future (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+## Purpose {.tabset}
+
+```{r}
+
+purpose <- purpose %>% 
+dplyr:: mutate(number = recode(number, 
+                         "1" = "1.When you think about your life, what are you striving to accomplish?",
+                         "2" = "2.What kind of plans do you have for the future and how are you working towards them?",
+                         "3" = "3.Do you feel like you have a sense of direction in your life, or do you feel like you're wandering aimlessly?"),)
+```
+
+### Wordcount
+
+```{r}
+purpose_median_wc = purpose %>%
+  group_by(number) %>%
+  summarize(median = median(WC))
+
+purpose %>%
+  ggplot(aes(x = WC, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = purpose_median_wc, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Word Count", y = "PrompT Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### I-usage 
+
+```{r}
+
+purpose_median_i = purpose %>%
+  group_by(number) %>%
+  summarize(median = median(i))
+
+purpose %>%
+  ggplot(aes(x = i, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = purpose_median_i, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "I-usage (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### We-usage
+
+```{r}
+
+purpose_median_we = purpose %>%
+  group_by(number) %>%
+  summarize(median = median(we))
+
+purpose %>%
+  ggplot(aes(x = we, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = purpose_median_we, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "We-usage (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Positive Sentiment 
+
+```{r}
+
+purpose_median_tone_pos = purpose %>%
+  group_by(number) %>%
+  summarize(median = median(tone_pos))
+
+purpose %>%
+  ggplot(aes(x = tone_pos, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = purpose_median_tone_pos, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Positive Sentiment (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Negative Sentiment 
+
+```{r}
+
+purpose_median_tone_pos = purpose %>%
+  group_by(number) %>%
+  summarize(median = median(tone_pos))
+
+purpose %>%
+  ggplot(aes(x = tone_pos, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = purpose_median_tone_pos, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Positive Sentiment (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Cognitive Processing 
+
+```{r}
+purpose_median_cogproc = purpose %>%
+  group_by(number) %>%
+  summarize(median = median(cogproc))
+
+purpose %>%
+  ggplot(aes(x = cogproc, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = purpose_median_cogproc, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Cognititve Processing (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Certainty 
+
+```{r}
+
+purpose_median_certitude = purpose %>%
+  group_by(number) %>%
+  summarize(median = median(certitude))
+
+purpose %>%
+  ggplot(aes(x = certitude, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = purpose_median_certitude, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Certainty (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+```
+
+### Focus Past 
+
+```{r}
+purpose_median_focuspast = purpose %>%
+  group_by(number) %>%
+  summarize(median = median(focuspast))
+
+purpose %>%
+  ggplot(aes(x = focuspast, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = purpose_median_focuspast, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Past (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+
+```
+
+### Focus Present 
+
+```{r}
+
+purpose_median_focuspresent = purpose %>%
+  group_by(number) %>%
+  summarize(median = median(focuspresent))
+
+purpose %>%
+  ggplot(aes(x = focuspresent, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = purpose_median_focuspresent, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Present (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Future 
+
+```{r}
+
+purpose_median_focusfuture = purpose %>%
+  group_by(number) %>%
+  summarize(median = median(focusfuture))
+
+purpose %>%
+  ggplot(aes(x = focusfuture, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = purpose_median_focusfuture, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Future (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+## Personal Growth {.tabset}
+
+```{r}
+  personal_growth <- personal_growth %>% 
+  dplyr:: mutate(number = recode(number, 
+                         "1" = "1.What experiences have you had that challenged how you think about yourself and the world?",
+                         "2" = "2.How have you developed as a person over time?",
+                         "3" = "3.What life achievements are you proud of?"),)
+```
+
+
+### Word Count
+
+```{r}
+
+personal_growth_median_wc = personal_growth %>%
+  group_by(number) %>%
+  summarize(median = median(WC))
+
+personal_growth %>%
+  ggplot(aes(x = WC, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = personal_growth_median_wc, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Word Count", y = "PrompT Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### I-usage 
+
+```{r}
+
+personal_growth_median_i = personal_growth %>%
+  group_by(number) %>%
+  summarize(median = median(i))
+
+personal_growth %>%
+  ggplot(aes(x = i, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = personal_growth_median_i, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "I-usage (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### We-usage 
+
+```{r}
+
+personal_growth_median_we = personal_growth %>%
+  group_by(number) %>%
+  summarize(median = median(we))
+
+personal_growth %>%
+  ggplot(aes(x = we, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = personal_growth_median_we, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "We-usage (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+```
+
+### Positive Sentiment 
+
+```{r}
+
+personal_growth_median_tone_pos = personal_growth %>%
+  group_by(number) %>%
+  summarize(median = median(tone_pos))
+
+personal_growth %>%
+  ggplot(aes(x = tone_pos, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = personal_growth_median_tone_pos, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Positive Sentiment (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Negative Sentiment
+
+```{r}
+
+personal_growth_median_tone_neg = personal_growth %>%
+  group_by(number) %>%
+  summarize(median = median(tone_neg))
+
+personal_growth %>%
+  ggplot(aes(x = tone_neg, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = personal_growth_median_tone_neg, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Negative Sentiment Words (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Cognitive Processing 
+
+```{r}
+
+personal_growth_median_cogproc = personal_growth %>%
+  group_by(number) %>%
+  summarize(median = median(cogproc))
+
+personal_growth %>%
+  ggplot(aes(x = cogproc, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = personal_growth_median_cogproc, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Cognititve Processing (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Certainty
+
+```{r}
+
+personal_growth_median_certitude = personal_growth %>%
+  group_by(number) %>%
+  summarize(median = median(certitude))
+
+personal_growth %>%
+  ggplot(aes(x = certitude, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = personal_growth_median_certitude, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Certainty (% total words)", y = "Prompt Number") +
+scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Past
+
+```{r}
+
+personal_growth_median_focuspast = personal_growth %>%
+  group_by(number) %>%
+  summarize(median = median(focuspast))
+
+personal_growth %>%
+  ggplot(aes(x = focuspast, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = personal_growth_median_focuspast, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Past (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Present 
+
+```{r}
+
+personal_growth_median_focuspresent = personal_growth %>%
+  group_by(number) %>%
+  summarize(median = median(focuspresent))
+
+personal_growth %>%
+  ggplot(aes(x = focuspresent, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = personal_growth_median_focuspresent, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Present (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Future 
+
+```{r}
+
+personal_growth_median_focusfuture = personal_growth %>%
+  group_by(number) %>%
+  summarize(median = median(focusfuture))
+
+personal_growth %>%
+  ggplot(aes(x = focusfuture, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = personal_growth_median_focusfuture, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Future (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+## Positive Relationships {.tabset}
+
+```{r}
+relationships <- relationships %>% 
+   dplyr:: mutate(number = recode(number, 
+                         "1" = "1.Describe the level of trust between you and your friends.",
+                         "2" = "2.Describe a conversation you had recently with a family member or friends that you enjoyed.",
+                         "3" = "3.Describe a time you generously share your time with someone else."),)
+```
+
+
+### Word Count
+
+```{r}
+
+relationships_median_wc = relationships %>%
+  group_by(number) %>%
+  summarize(median = median(WC))
+
+relationships %>%
+  ggplot(aes(x = WC, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = relationships_median_wc, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Word Count", y = "PrompT Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### I-usage 
+
+```{r}
+
+relationships_median_i = relationships %>%
+  group_by(number) %>%
+  summarize(median = median(i))
+
+relationships %>%
+  ggplot(aes(x = i, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = relationships_median_i, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "I-usage (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### We-usage
+
+```{r}
+
+relationships_median_we = relationships %>%
+  group_by(number) %>%
+  summarize(median = median(we))
+
+relationships %>%
+  ggplot(aes(x = we, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = relationships_median_we, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "We-usage (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Positive Sentiment 
+
+```{r}
+
+relationships_median_tone_pos = relationships %>%
+  group_by(number) %>%
+  summarize(median = median(tone_pos))
+
+relationships %>%
+  ggplot(aes(x = tone_pos, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = relationships_median_tone_pos, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Positive Sentiment (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Negative Sentiment 
+
+```{r}
+
+relationships_median_tone_neg = relationships %>%
+  group_by(number) %>%
+  summarize(median = median(tone_neg))
+
+relationships %>%
+  ggplot(aes(x = tone_neg, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = relationships_median_tone_neg, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Negative Sentiment Words (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Cognitive Processing 
+
+```{r}
+
+relationships_median_cogproc = relationships %>%
+  group_by(number) %>%
+  summarize(median = median(cogproc))
+
+relationships %>%
+  ggplot(aes(x = cogproc, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = relationships_median_cogproc, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Cognitive Processing (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+```
+
+### Certainty 
+
+```{r}
+
+relationships_median_certitude = relationships %>%
+  group_by(number) %>%
+  summarize(median = median(certitude))
+
+relationships %>%
+  ggplot(aes(x = certitude, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = relationships_median_certitude, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Certainty (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Past 
+
+```{r}
+
+relationships_median_focuspast = relationships %>%
+  group_by(number) %>%
+  summarize(median = median(focuspast))
+
+relationships %>%
+  ggplot(aes(x = focuspast, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = relationships_median_focuspast, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Past (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Present 
+
+```{r}
+
+relationships_median_focuspresent = relationships %>%
+  group_by(number) %>%
+  summarize(median = median(focuspresent))
+
+relationships %>%
+  ggplot(aes(x = focuspresent, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = relationships_median_focuspresent, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Present (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Future 
+
+```{r}
+
+relationships_median_focusfuture = relationships %>%
+  group_by(number) %>%
+  summarize(median = median(focusfuture))
+
+relationships %>%
+  ggplot(aes(x = focusfuture, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = relationships_median_focusfuture, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Future (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+## Self-Acceptance {.tabset}
+
+```{r}
+self_acceptance <- self_acceptance %>% 
+ dplyr:: mutate(number = recode(number, 
+                         "1" = "1.What aspect or aspects of your personality do you like?",
+                         "2" = "2.When you look back at the story of your life, what are you pleased about?",
+                         "3" = "3.What life achievements are you proud of?"),)
+```
+
+
+### Word Count 
+
+```{r}
+
+self_acceptance_median_wc = self_acceptance %>%
+  group_by(number) %>%
+  summarize(median = median(WC))
+
+self_acceptance %>%
+  ggplot(aes(x = WC, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = self_acceptance_median_wc, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Word Count", y = "PrompT Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+
+```
+
+### I-usage 
+
+```{r}
+
+self_acceptance_median_i = self_acceptance %>%
+  group_by(number) %>%
+  summarize(median = median(i))
+
+self_acceptance %>%
+  ggplot(aes(x = i, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = self_acceptance_median_i, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "I-usage (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+```
+
+### We-usage 
+
+```{r}
+
+self_acceptance_median_we = self_acceptance %>%
+  group_by(number) %>%
+  summarize(median = median(we))
+
+self_acceptance %>%
+  ggplot(aes(x = we, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = self_acceptance_median_we, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "We-usage (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Positive Sentiment 
+
+```{r}
+
+self_acceptance_median_tone_pos = self_acceptance %>%
+  group_by(number) %>%
+  summarize(median = median(tone_pos))
+
+self_acceptance %>%
+  ggplot(aes(x = tone_pos, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = self_acceptance_median_tone_pos, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Positive Sentiment (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Negative Sentiment 
+
+```{r}
+
+self_acceptance_median_tone_neg = self_acceptance %>%
+  group_by(number) %>%
+  summarize(median = median(tone_neg))
+
+self_acceptance %>%
+  ggplot(aes(x = tone_neg, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = self_acceptance_median_tone_neg, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Negative Sentiment Words (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Cognitive Processing 
+
+```{r}
+
+self_acceptance_median_cogproc = self_acceptance %>%
+  group_by(number) %>%
+  summarize(median = median(cogproc))
+
+self_acceptance %>%
+  ggplot(aes(x = cogproc, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = self_acceptance_median_cogproc, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Cognitive Processing (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+```
+
+### Certainty 
+
+```{r}
+
+self_acceptance_median_certitude = self_acceptance %>%
+  group_by(number) %>%
+  summarize(median = median(certitude))
+
+self_acceptance %>%
+  ggplot(aes(x = certitude, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = self_acceptance_median_certitude, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Certainty (% total words)", y = "Prompt Number") +
+ scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Past 
+
+```{r}
+
+self_acceptance_median_focuspast = self_acceptance %>%
+  group_by(number) %>%
+  summarize(median = median(focuspast))
+
+self_acceptance %>%
+  ggplot(aes(x = focuspast, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = self_acceptance_median_focuspast, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Past (% total words)", y = "Prompt Number") +
+scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Present 
+
+```{r}
+
+self_acceptance_median_focuspresent = self_acceptance %>%
+  group_by(number) %>%
+  summarize(median = median(focuspresent))
+
+self_acceptance %>%
+  ggplot(aes(x = focuspresent, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = self_acceptance_median_focuspresent, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Present (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+```
+
+### Focus Future 
+
+```{r}
+
+self_acceptance_median_focusfuture = self_acceptance %>%
+  group_by(number) %>%
+  summarize(median = median(focusfuture))
+
+self_acceptance %>%
+  ggplot(aes(x = focusfuture, y = number, fill = number)) +
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = self_acceptance_median_focusfuture, aes(y = number, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Focus Future (% total words)", y = "Prompt Number") +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none") + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(25)) +  
+  scale_y_discrete(guide = guide_axis(n.dodge = 1), labels = wrap_format(20)) + 
+  plot_aes + 
+  theme(
+        axis.text.x = element_text(size = 8, color = "black"),  
+        axis.text.y = element_text(size = 8, color = "black"),  # Adjust the margin for y-axis labels
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+```
+

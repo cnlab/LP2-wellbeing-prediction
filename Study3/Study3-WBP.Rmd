@@ -96,11 +96,19 @@ table <- function(correlation_data) {
   # Add the RMSE column
   correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 2)
 
+  # Add the confidence interval (assuming you have 'conf_int_low' and 'conf_int_high' columns)
+  correlation_data$confidence_interval <- paste0("[", 
+                                                 round(as.numeric(correlation_data$conf_int_low), 2), 
+                                                 ", ", 
+                                                 round(as.numeric(correlation_data$conf_int_high), 2), 
+                                                 "]")
+
   # Create the DataTable
   datatable(correlation_data, extensions = 'FixedColumns', 
             filter = list(position = 'top', clear = FALSE),
             options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
 }
+
 
 
 
@@ -276,6 +284,8 @@ SWLS_subscale_results <-
                      NA))
 
 table(SWLS_subscale_results)
+
+saveRDS(SWLS_subscale_results,file.path(data_dir,"models/Study3/SWLS_subscale_results.RDS"))
 ```
 
 ```{r SWLS-heat}
@@ -373,6 +383,9 @@ Autonomy_subscale_results <-
                      NA)
   )
 table(Autonomy_subscale_results)
+
+saveRDS(Autonomy_subscale_results,file.path(data_dir,"models/Study3/Autonomy_subscale_results.RDS"))
+
 ```
 
 ### Heatmaps 
@@ -421,6 +434,112 @@ all_heat +
     plot.caption = element_text(hjust = 1, size = 10)
   ) 
 ```
+
+```{r}
+# extract confidence intervals for each model
+
+process_results <- function(result_list) {
+  results <- data.frame(
+    model = character(),
+    statistic = numeric(),
+    parameter = integer(),
+    p.value = numeric(),
+    r = numeric(),
+    null.value = numeric(),
+    alternative = character(),
+    method = character(),
+    data.name = character(),
+    conf.int_low = numeric(),
+    conf.int_high = numeric(),
+    stringsAsFactors = FALSE
+  )
+  
+  for (model_name in names(result_list)) {
+    # Extract the relevant information from the current data frame
+    current_result <- result_list[[model_name]]
+    
+    # Check if current_result contains all necessary elements
+    if (!is.null(current_result) && length(current_result) > 0) {
+      
+      # Ensure that fields exist and are non-empty; otherwise, fill with NA
+      result_df <- data.frame(
+        model = model_name,
+        statistic = if (!is.null(current_result$statistic)) current_result$statistic else NA,
+        parameter = if (!is.null(current_result$parameter)) current_result$parameter else NA,
+        p.value = if (!is.null(current_result$p.value)) current_result$p.value else NA,
+        r = if (!is.null(current_result$estimate)) current_result$estimate else NA,
+        null.value = if (!is.null(current_result$null.value)) current_result$null.value else NA,
+        alternative = if (!is.null(current_result$alternative)) current_result$alternative else NA,
+        method = if (!is.null(current_result$method)) current_result$method else NA,
+        data.name = if (!is.null(current_result$data.name)) current_result$data.name else NA,
+        conf.int_low = if (!is.null(current_result$conf.int)) current_result$conf.int[1] else NA,
+        conf.int_high = if (!is.null(current_result$conf.int)) current_result$conf.int[2] else NA,
+        stringsAsFactors = FALSE
+      )
+      
+      # Add the data frame to results
+      results <- rbind(results, result_df)
+    } else {
+      message(paste("Skipping model:", model_name, "due to missing or empty result."))
+    }
+  }
+  
+  return(results)
+}
+
+
+
+result_list <- list(
+  autonomy_acceptance_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB self_acceptance`$results,
+  autonomy_autonomy_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB autonomy`$results,
+  autonomy_growth_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB personal_growth`$results,
+  autonomy_purpose_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB purpose`$results,
+  autonomy_relationships_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB positive_relations`$results,
+  autonomy_PWB_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB mean`$results,
+  autonomy_SWLS_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_SWLS mean`$results
+)
+
+autonomy_results <- process_results(result_list)
+
+
+autonomy_results<- 
+  autonomy_results %>%
+  mutate(
+    prompt = ifelse(grepl("autonomy_", model), "autonomy", NA),
+    outcome = ifelse(grepl("_sub", model), gsub(".*autonomy_", "", gsub("_sub", "", model)), NA))
+
+
+#### SWLS
+
+result_list <- list(
+  SWLS_acceptance_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB self_acceptance`$results,
+  SWLS_autonomy_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB autonomy`$results,
+  SWLS_growth_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB personal_growth`$results,
+  SWLS_purpose_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB purpose`$results,
+  SWLS_relationships_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB positive_relations`$results,
+  SWLS_PWB_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB mean`$results,
+  SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_SWLS mean`$results
+)
+
+SWLS_results <- process_results(result_list)
+
+
+SWLS_results<- 
+  SWLS_results %>%
+  mutate(
+    prompt = ifelse(grepl("SWLS_", model), "SWLS", NA),
+    outcome = ifelse(grepl("_sub", model), gsub(".*SWLS_", "", gsub("_sub", "", model)), NA))
+
+
+### bind 
+
+all_effects = rbind(autonomy_results,SWLS_results)
+
+saveRDS(all_effects,file.path(data_dir,"models/prelim-analyses/study3_all_effects.RDS"))
+
+
+```
+
 
 
 # Question 2 

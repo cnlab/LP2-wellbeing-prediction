@@ -1,5 +1,5 @@
 ---
-title: "Study 1: LP2-Item-level-Prediction"
+title: "Study 1: Post-Item-level-Prediction"
 author: ""
 date: "`r Sys.Date()`"
 output:
@@ -18,7 +18,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "item_level/item_")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "post_item_level/item_")
 options(scipen=999)
 ```
 
@@ -34,10 +34,12 @@ pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, react
 ```
 
 ```{r eval=FALSE, include=FALSE}
+#install.packages("devtools")
+#devtools::install_version("text", version = "1.2.1", repos = "http://cran.us.r-project.org")
+#### as of 8/29 need to exclusively use version 1.2.1 to get around a fatal R issue
 library(text)
-textrpp_install()
+textrpp_install(prompt = F)
 textrpp_initialize()
-
 ```
 
 ```{r}
@@ -53,13 +55,30 @@ calculate_and_store_rmse <- function(column_name, model_names, actual_values, pr
   
   for (col_name in model_names) {
     if (grepl(column_name, col_name)) {
-      rmse_value <- Metrics::rmse(actual_values[[column_name]], predicted_values[[col_name]])
+      # Combine actual and predicted values into a data frame to handle NAs
+      combined_df <- data.frame(
+        actual = actual_values[[column_name]],
+        predicted = predicted_values[[col_name]]
+      )
+      
+      # Remove rows where either actual or predicted values are NA
+      combined_df <- na.omit(combined_df)
+      
+      # Calculate RMSE only if there are valid pairs left
+      if (nrow(combined_df) > 0) {
+        rmse_value <- Metrics::rmse(combined_df$actual, combined_df$predicted)
+      } else {
+        rmse_value <- NA  # Assign NA if no valid pairs exist
+      }
+      
+      # Store the result
       results_list <- c(results_list, list(data.frame(Model = col_name, RMSE = rmse_value)))
     }
   }
   
   return(results_list)
 }
+
 
 # Initialize an empty list to store results
 results <- list()
@@ -96,18 +115,24 @@ table <- function(correlation_data) {
 # load data
 
 ```{r load-data}
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv")
 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/embeddings/study_1/all_embeddings.rds")
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
+data <- read_csv(file.path(data_dir,"/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv"))
+
+df <- data %>%
+select(1, starts_with("post")) %>% 
+filter(rowSums(is.na(select(., starts_with("post")))) == 0) 
+
+embeddings <- read_rds("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/embeddings/Study1_post__embeddings.rds")
 ```
 
 # Inter-item Correlations
 
 ```{r}
 
-items = df %>% 
-  select(42:63)
 
+items <- df %>%
+  select(10:32)
 
 calculate_cronbach_alpha <- function(df) {
   # Identify subscales based on column names
@@ -159,12 +184,6 @@ calculate_cronbach_alpha <- function(df) {
 
 alpha_results <- calculate_cronbach_alpha(items)
 
-pwb = items %>% 
-  select(1:18)
-
-pwb_alpha_value = psych::alpha(pwb)$total$raw_alpha
-alpha_results <- rbind(alpha_results, data.frame(subscale = "PWB", alpha = pwb_alpha_value))
-
 
 alpha_results %>% 
   mutate(alpha = round(alpha, 3)) %>% 
@@ -177,7 +196,7 @@ alpha_results %>%
 
 
 
-# Models {.tabset}
+# construct models {.tabset}
 
 ## Positive Affect {.tabset}
 
@@ -207,25 +226,28 @@ alpha_results %>%
 
 ```{r}
 affect <- df %>%
-  select(starts_with("pre_SWLS"))
+  select(-post_SWLS_mean) %>% 
+  select(starts_with("post_SWLS_"))
 
+rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/post-item-level/affect_item_output.RDS") #update with the path to each model
 
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/affect_item_output.RDS")) {
+if (!file.exists(rds_file_path)) {
   affect_item <- textTrainLists(
     x = embeddings$texts[7:9],
-    y = affect[1:6],
+    y = affect[1:5],
     force_train_method = "regression",
     save_output = "all",
     method_cor = "pearson",
     eval_measure = "rmse",
     p_adjust_method = "fdr",
-    model_description = "positive affect predicting pre-subscales and WB, N = 181"
+    model_description = "positive affect predicting pre-subscales and WB, N = 181",
+    multicore = T
   )
    # Save the model output to an RDS file
-  saveRDS(affect_item, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/affect_item_output.RDS")
+  saveRDS(affect_item,rds_file_path)
 } else {
   # If the RDS file already exists, load the data from it
-  affect_item <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/affect_item_output.RDS")
+  affect_item <- readRDS(rds_file_path)
 }
 
 affect_item_predictions <-as.data.frame(affect_item$predictions[1:15])
@@ -233,19 +255,26 @@ models <- c(colnames(affect_item$predictions[1:15]))
 
 
 for (i in 1:5) {
-  column_name <- paste0("pre_SWLS_", i)
+  column_name <- paste0("post_SWLS_", i)
+  
+  # Call the updated calculate_and_store_rmse function
   result <- calculate_and_store_rmse(
     column_name = column_name,
     model_names = models,
     actual_values = affect,
     predicted_values = affect_item_predictions
   )
+  
+  # Append the result to the results list
   results <- c(results, result)
-  # Convert the results list to a data frame
+}
+
+# Combine the list of data frames into a single data frame and remove duplicates
 affect_rmse <- results %>%
   bind_rows() %>%
-  distinct()
-}
+  distinct() %>%
+  filter(!is.na(RMSE)) #removing duplicates that are NAs
+  
 
 affect_item_results <- head(affect_item$results, 15)
 affect_item_results$RMSE <- affect_rmse$RMSE
@@ -332,9 +361,13 @@ affect_heat
 ```{r}
 
 purpose <- df %>%
-  select(starts_with("pre_Purpose_in_Life"))
+  select(-post_PWB_purpose) %>% 
+  select(starts_with("post_Purpose_in_Life"))
 
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/purpose_item_level_output.RDS")) {
+rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/post-item-level/purpose_item_level_output.RDS") #update with the path to each model
+
+
+if (!file.exists(rds_file_path)) {
  purpose_item <- textTrainLists(
     x = embeddings$texts[10:12],
     y = purpose[1:3],
@@ -343,15 +376,16 @@ if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within
     method_cor = "pearson",
     eval_measure = "rmse",
     p_adjust_method = "fdr",
-    model_description = "purpose predicting pre item-level responses, N = 181"
+    model_description = "purpose predicting pre item-level responses, N = 181",
+    multicore = T
   )
   
   
   # Save the model output to an RDS file
-  saveRDS(purpose_item, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/purpose_item_level_output.RDS")
+  saveRDS(purpose_item, rds_file_path)
 } else {
   # If the RDS file already exists, load the data from it
-  purpose_item <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/purpose_item_level_output.RDS")
+  purpose_item <- readRDS(rds_file_path)
 }
 
 ###tack on RMSE 
@@ -360,21 +394,30 @@ purpose_item_predictions <-as.data.frame(purpose_item$predictions[1:9])
 models <- c(colnames(purpose_item$predictions[1:9]))
 
 
+results <- list()  # Initialize an empty list to store results
+
 for (i in 1:3) {
-  column_name <- paste0("pre_Purpose_in_Life_", i)
+  column_name <- paste0("post_Purpose_in_Life_", i)
+  
+  # Call the updated calculate_and_store_rmse function
   result <- calculate_and_store_rmse(
     column_name = column_name,
     model_names = models,
     actual_values = purpose,
     predicted_values = purpose_item_predictions
   )
+  
+  # Append the result to the results list
   results <- c(results, result)
-  # Convert the results list to a data frame
+}
+
+# Combine the list of data frames into a single data frame, remove duplicates, and filter for "Purpose" models
 purpose_rmse <- results %>%
   bind_rows() %>%
-  distinct() %>% 
-  filter(grepl("Purpose", Model, ignore.case = TRUE))
-}
+  distinct() %>%
+  filter(!is.na(RMSE)) #removing duplicates that are NAs
+
+
 purpose_item_results <- purpose_item$results
 purpose_item_results$RMSE <- purpose_rmse$RMSE
 table(purpose_item_results)
@@ -455,10 +498,15 @@ purpose_heat
 #### Estimates
 
 ```{r}
-relationships <- df %>%
-  select(starts_with("pre_Positive_Relations"))
 
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/relationships_item_level_output.RDS")) {
+relationships <- df %>%
+  select(-post_PWB_positive_relations) %>% 
+  select(starts_with("post_Positive_Relations"))
+
+rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/post-item-level/relationships_item_level_output.RDS") #update with the path to each model
+
+
+if (!file.exists(rds_file_path)) {
  relationships_item <- textTrainLists(
     x = embeddings$texts[13:15],
     y = relationships[1:3],
@@ -467,37 +515,43 @@ if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within
     method_cor = "pearson",
     eval_measure = "rmse",
     p_adjust_method = "fdr",
-    model_description = "relationships predicting pre item-level responses, N = 181"
+    model_description = "relationships predicting pre item-level responses, N = 181",
+    multicore = T
   )
   
   
   # Save the model output to an RDS file
-  saveRDS(relationships_item, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/relationships_item_level_output.RDS")
+  saveRDS(relationships_item, rds_file_path)
 } else {
   # If the RDS file already exists, load the data from it
-  relationships_item <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/relationships_item_level_output.RDS")
+  relationships_item <- readRDS(rds_file_path)
 }
 
 relationship_item_predictions <-as.data.frame(relationships_item$predictions[1:9])
 models <- c(colnames(relationships_item$predictions[1:9]))
 
+results <- list()  # Initialize an empty list to store results
 
 for (i in 1:3) {
-  column_name <- paste0("pre_Positive_Relations_", i)
+  column_name <- paste0("post_Positive_Relations_", i)
+  
+  # Call the updated calculate_and_store_rmse function
   result <- calculate_and_store_rmse(
     column_name = column_name,
     model_names = models,
     actual_values = relationships,
     predicted_values = relationship_item_predictions
   )
+  
+  # Append the result to the results list
   results <- c(results, result)
-  # Convert the results list to a data frame
-relations_rmse <- results %>%
-  bind_rows() %>%
-  distinct() %>% 
-  filter(grepl("Relations", Model, ignore.case = TRUE))
 }
 
+# Combine the list of data frames into a single data frame, remove duplicates, and filter for "Purpose" models
+relations_rmse <- results %>%
+  bind_rows() %>%
+  distinct() %>%
+  filter(!is.na(RMSE)) #removing duplicates that are NAs
 
 relationships_results <- relationships_item$results
 relationships_results$RMSE <- relations_rmse$RMSE
@@ -582,11 +636,13 @@ relationships_heat
 #### Estimates
 
 ```{r}
-
 acceptance <- df %>%
-  select(starts_with("pre_Self-Acceptance"))
+  select(-post_PWB_self_acceptance) %>% 
+  select(starts_with("post_Self-Acceptance"))
 
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/acceptance_item_output.RDS")) {
+rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/post-item-level/acceptance_item_output.RDS") #update with the path
+
+if (!file.exists(rds_file_path)) {
  acceptance_item <- textTrainLists(
     x = embeddings$texts[16:18],
     y = acceptance[1:3],
@@ -595,36 +651,46 @@ if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within
     method_cor = "pearson",
     eval_measure = "rmse",
     p_adjust_method = "fdr",
-    model_description = "acceptance predicting item-level and WB, N = 181"
+    model_description = "acceptance predicting item-level and WB, N = 181",
+    multicore = T
   )
   
   
   # Save the model output to an RDS file
-  saveRDS(acceptance_item, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/acceptance_item_output.RDS")
+  saveRDS(acceptance_item,rds_file_path)
 } else {
   # If the RDS file already exists, load the data from it
-  acceptance_item <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/acceptance_item_output.RDS")
+  acceptance_item <- readRDS(rds_file_path)
 }
 
 acceptance_item_predictions <-as.data.frame(acceptance_item$predictions[1:9])
 models <- c(colnames(acceptance_item$predictions[1:9]))
 
 
+results <- list()  # Initialize an empty list to store results
+
 for (i in 1:3) {
-  column_name <- paste0("pre_Self-Acceptance_", i)
+  column_name <- paste0("post_Self-Acceptance_", i)
+  
+  # Call the updated calculate_and_store_rmse function
   result <- calculate_and_store_rmse(
     column_name = column_name,
     model_names = models,
     actual_values = acceptance,
     predicted_values = acceptance_item_predictions
   )
+  
+  # Append the result to the results list
   results <- c(results, result)
-  # Convert the results list to a data frame
+}
+
+# Combine the list of data frames into a single data frame, remove duplicates, and filter for "Purpose" models
 acceptance_rmse <- results %>%
   bind_rows() %>%
-  distinct() %>% 
-  filter(grepl("Self-Acceptance", Model, ignore.case = TRUE))
-}
+  distinct() %>%
+  filter(!is.na(RMSE)) #removing duplicates that are NAs
+
+
 acceptance_results <- acceptance_item$results
 acceptance_results$RMSE <- acceptance_rmse$RMSE
 table(acceptance_results)
@@ -709,10 +775,12 @@ acceptance_heat
 
 ```{r}
 growth <- df %>%
-  select(starts_with("pre_Personal_Growth"))
+  select(-post_PWB_personal_growth) %>% 
+  select(starts_with("post_Personal_Growth"))
 
+rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/post-item-level/growth_item_output.RDS") #update with the path
 
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/growth_item_output.RDS")) {
+if (!file.exists(rds_file_path)) {
  growth_item <- textTrainLists(
     x = embeddings$texts[4:6],
     y = growth[1:3],
@@ -721,36 +789,44 @@ if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within
     method_cor = "pearson",
     eval_measure = "rmse",
     p_adjust_method = "fdr",
-    model_description = "personal growth predicting item-level and WB, N = 181"
+    model_description = "personal growth predicting item-level and WB, N = 181",
+    multicore = T
   )
   
   
   # Save the model output to an RDS file
-  saveRDS(growth_item, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/growth_item_output.RDS")
+  saveRDS(growth_item, rds_file_path)
 } else {
   # If the RDS file already exists, load the data from it
-  growth_item <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/growth_item_output.RDS")
+  growth_item <- readRDS(rds_file_path)
 }
 
 
 growth_item_predictions <-as.data.frame(growth_item$predictions[1:9])
 models <- c(colnames(growth_item$predictions[1:9]))
 
+results <- list()  # Initialize an empty list to store results
 for (i in 1:3) {
-  column_name <- paste0("pre_Personal_Growth_", i)
+  column_name <- paste0("post_Personal_Growth_", i)
+  
+  # Call the updated calculate_and_store_rmse function
   result <- calculate_and_store_rmse(
     column_name = column_name,
     model_names = models,
     actual_values = growth,
     predicted_values = growth_item_predictions
   )
+  
+  # Append the result to the results list
   results <- c(results, result)
-  # Convert the results list to a data frame
+}
+
+# Combine the list of data frames into a single data frame, remove duplicates, and filter for "Purpose" models
 growth_rmse <- results %>%
   bind_rows() %>%
-  distinct() %>% 
-  filter(grepl("Personal_Growth", Model, ignore.case = TRUE))
-}
+  distinct() %>%
+  filter(!is.na(RMSE)) #removing duplicates that are NAs
+
 
 growth_results <- growth_item$results
 growth_results$RMSE <- growth_rmse$RMSE
@@ -838,10 +914,13 @@ growth_heat
 ```{r}
 
 autonomy <- df %>%
-  select(starts_with("pre_Autonomy"))
+  select(-post_PWB_autonomy) %>% 
+  select(starts_with("post_Autonomy"))
+
+rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/post-item-level/autonomy_item_output.RDS") #update with the path
 
 
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/autonomy_item_output.RDS")) {
+if (!file.exists(rds_file_path)) {
  autonomy_item <- textTrainLists(
     x = embeddings$texts[1:3],
     y = autonomy[1:3],
@@ -850,37 +929,43 @@ if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within
     method_cor = "pearson",
     eval_measure = "rmse",
     p_adjust_method = "fdr",
-    model_description = "autonomy predicting item-level and WB, N = 181"
+    model_description = "autonomy predicting item-level and WB, N = 181",
+    multicore = T
   )
   
   
   # Save the model output to an RDS file
-  saveRDS(autonomy_item, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/autonomy_item_output.RDS")
+  saveRDS(autonomy_item, rds_file_path)
 } else {
   # If the RDS file already exists, load the data from it
-  autonomy_item <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/autonomy_item_output.RDS")
+  autonomy_item <- readRDS(rds_file_path)
 }
 
 
 autonomy_item_predictions <-as.data.frame(autonomy_item$predictions[1:9])
 models <- c(colnames(autonomy_item$predictions[1:9]))
 
-
+results <- list()  # Initialize an empty list to store results
 for (i in 1:3) {
-  column_name <- paste0("pre_Autonomy_", i)
+  column_name <- paste0("post_Autonomy_", i)
+  
+  # Call the updated calculate_and_store_rmse function
   result <- calculate_and_store_rmse(
     column_name = column_name,
     model_names = models,
     actual_values = autonomy,
     predicted_values = autonomy_item_predictions
   )
+  
+  # Append the result to the results list
   results <- c(results, result)
-  # Convert the results list to a data frame
+}
+
+# Combine the list of data frames into a single data frame, remove duplicates, and filter for "Purpose" models
 autonomy_rmse <- results %>%
   bind_rows() %>%
-  distinct() %>% 
-  filter(grepl("autonomy", Model, ignore.case = TRUE))
-}
+  distinct() %>%
+  filter(!is.na(RMSE)) #removing duplicates that are NAs
 
 autonomy_results <- autonomy_item$results
 autonomy_results$RMSE <- autonomy_rmse$RMSE

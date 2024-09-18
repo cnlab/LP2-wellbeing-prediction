@@ -1,5 +1,5 @@
 ---
-title: "WBP Study 1: LP2-Post-Subscale-level-Prediction"
+title: "WBP Study 1: Post-Subscale-level-Prediction"
 author: ""
 date: "`r Sys.Date()`"
 output:

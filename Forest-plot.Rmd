@@ -1,0 +1,99 @@
+---
+title: "Forest Plot"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "forest_plot/plot_")
+options(scipen=999)
+```
+
+
+```{r load packages, include=FALSE}
+if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
+library(pacman)
+
+
+pacman::p_load(tidyverse,install = T) 
+# Set-up an environment with text-required python packages
+
+```
+
+```{r load in study models}
+study_1 = readRDS("/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/all_subscales.RDS")
+study_1$dataset = "Study 1"
+
+study_1 = study_1 %>% 
+  select(-RMSE)
+
+
+#load in study2
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
+study_2 = readRDS(file.path(data_dir, "models/prelim-analyses/study2_all_effects.RDS"))
+study_2$dataset = "Study 2"
+
+#load in Study 3 
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/"
+study_3 = readRDS(file.path(data_dir, "models/prelim-analyses/study3_all_effects.RDS"))
+study_3$dataset = "Study 3"
+
+common_cols <- intersect(intersect(names(study_1), names(study_2)), names(study_3))
+
+# Select only the common columns in each dataframe
+study_1_aligned <- study_1 %>% select(all_of(common_cols))
+study_2_aligned <- study_2 %>% select(all_of(common_cols))
+study_3_aligned <- study_3 %>% select(all_of(common_cols))
+
+# Row bind the aligned dataframes
+all_studies <- rbind(study_1, study_2, study_3)
+
+palette = c("#772e25", "#0a9396","#9b2226", "#ca6702", "#bb3e03" , "#ADA7C1","#6195C6")
+
+
+plot_aes = theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 10),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = 20))  # Center and increase title size)
+
+```
+
+```{r forest-plot, fig.height=7, fig.width=10}
+
+
+plot_data = all_studies %>% 
+  select(prompt,outcome,r,p.value,conf.int_low,conf.int_high, dataset)
+
+ggplot(plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = pmin(conf.int_high, 1), color = prompt, alpha = p.value < 0.05)) +
+  geom_pointrange(position = position_dodge(width = 0.6)) +
+  scale_color_manual(values = palette) +
+  scale_alpha_manual(values = c(0.1, 1), guide = FALSE) +  # Set alpha values
+  labs(title = "Language-based Assessments\nPredicting Well-being",
+       x = "Pearson's Product Moment Correlation",
+       y = "Psychological Outcome",
+       color = "Prompt Type") +
+  plot_aes + 
+  theme(axis.text.x = element_text(hjust = 1, size = 12)) +
+  scale_x_continuous(limits = c(-0.4, 1)) + 
+  facet_wrap(~dataset,) +   
+  geom_vline(xintercept = 0, linetype = "dashed")
+
+```
+
+
