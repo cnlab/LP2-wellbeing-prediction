@@ -78,29 +78,32 @@ table <- function(correlation_data) {
   correlation_data$alternative <- as.factor(correlation_data$alternative)
 
   # Round the numeric columns to three decimal places
-  correlation_data$correlation <- round(as.numeric(correlation_data$correlation), 2)
+  correlation_data$correlation <- round(as.numeric(correlation_data$correlation), 3)
   correlation_data$t_statistics <- round(as.numeric(correlation_data$t_statistics), 3)
-  correlation_data$p_value <- sapply(correlation_data$p_value, function(p) {
-    ifelse(as.numeric(p) < 0.001, "< .001", 
-           ifelse(as.numeric(p) == 1, "1.000", 
-                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
-  })
   
-  # Apply similar formatting to the p_value_corrected column
-  correlation_data$p_value_corrected <- sapply(correlation_data$p_value_corrected, function(p) {
-    ifelse(as.numeric(p) < 0.001, "< .001", 
-           ifelse(as.numeric(p) == 1, "1.000", 
-                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
-  })
+  # Format p-values to three decimal places
+  format_p_value <- function(p) {
+    p <- as.numeric(p)
+    if (p < 0.001) {
+      return("< .001")
+    } else if (p == 1) {
+      return("1.000")
+    } else {
+      return(sprintf("%.3f", p))
+    }
+  }
+  
+  correlation_data$p_value <- sapply(correlation_data$p_value, format_p_value)
+  correlation_data$p_value_corrected <- sapply(correlation_data$p_value_corrected, format_p_value)
 
   # Add the RMSE column
-  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 2)
+  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 3)
 
   # Add the confidence interval (assuming you have 'conf_int_low' and 'conf_int_high' columns)
   correlation_data$confidence_interval <- paste0("[", 
-                                                 round(as.numeric(correlation_data$conf_int_low), 2), 
+                                                 round(as.numeric(correlation_data$conf_int_low), 3), 
                                                  ", ", 
-                                                 round(as.numeric(correlation_data$conf_int_high), 2), 
+                                                 round(as.numeric(correlation_data$conf_int_high), 3), 
                                                  "]")
 
   # Create the DataTable
@@ -108,7 +111,6 @@ table <- function(correlation_data) {
             filter = list(position = 'top', clear = FALSE),
             options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
 }
-
 
 
 
@@ -288,6 +290,8 @@ table(SWLS_subscale_results)
 saveRDS(SWLS_subscale_results,file.path(data_dir,"models/Study3/SWLS_subscale_results.RDS"))
 ```
 
+### Heatmaps {.tabset}
+
 ```{r SWLS-heat}
 
 SWLS_subscale_results <- SWLS_subscale_results %>%
@@ -300,20 +304,25 @@ SWLS_subscale_results <- SWLS_subscale_results %>%
   )
 
 
-SWLS_heat =  ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = round(correlation, 2), 
+                fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), 
+            color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
-    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) + plot_aes
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
 
 SWLS_heat
 ```
@@ -401,20 +410,25 @@ Autonomy_subscale_results <- Autonomy_subscale_results %>%
   )
 
 
-Autonomy_heat =  ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = round(correlation, 2), 
+                fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), 
+            color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
-    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) + plot_aes
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
 
 Autonomy_heat
 ```

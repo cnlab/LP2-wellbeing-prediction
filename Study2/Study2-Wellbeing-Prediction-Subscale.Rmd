@@ -81,18 +81,25 @@ table <- function(correlation_data) {
 
   correlation_data$descriptions <- as.factor(correlation_data$descriptions)
   correlation_data$alternative <- as.factor(correlation_data$alternative)
-  # Round the numeric columns to three decimal places
-  correlation_data$correlation <- round(as.numeric(correlation_data$correlation), 2)
-  correlation_data$t_statistics <- round(as.numeric(correlation_data$t_statistics), 3)
-  correlation_data$p_value <- sapply(correlation_data$p_value, function(p) {
-    ifelse(as.numeric(p) < 0.001, "< .001", 
-           ifelse(as.numeric(p) == 1, "1.000", 
-                  gsub("0.(.*)", ".\\1", sprintf("%.3f", as.numeric(p)))))
-  })
-  correlation_data$p_value_corrected <- round(as.numeric(correlation_data$p_value_corrected), 3)
 
-  # Add the RMSE column
-  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 2)
+  # Function to format p-values
+  format_p_value <- function(p) {
+    p <- as.numeric(p)
+    if (p < 0.001) {
+      return("< .001")
+    } else if (p == 1) {
+      return("1.000")
+    } else {
+      return(sprintf("%.3f", p))
+    }
+  }
+
+  # Round and format numeric columns
+  correlation_data$correlation <- round(as.numeric(correlation_data$correlation), 3)
+  correlation_data$t_statistics <- round(as.numeric(correlation_data$t_statistics), 3)
+  correlation_data$p_value <- sapply(correlation_data$p_value, format_p_value)
+  correlation_data$p_value_corrected <- sapply(correlation_data$p_value_corrected, format_p_value)
+  correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 3)
 
   # Create the DataTable
   datatable(correlation_data, extensions = 'FixedColumns', 
@@ -219,6 +226,25 @@ alpha_results %>%
 
 ```
 
+## Breakdown of Conditions 
+
+```{r}
+text |> 
+  select(pID, type) |>
+  group_by(type) |>
+  summarize(n = n_distinct(pID)) |>
+  DT::datatable(extensions = 'FixedColumns', 
+            filter = list(position = 'top', clear = FALSE),
+            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+  
+```
+
+
+```{r}
+
+```
+
+
 # All Responses (audio + text) {.tabset}
 
 ## Satisfaction with Life {.tabset}
@@ -307,106 +333,28 @@ SWLS_subscale_results <- SWLS_subscale_results %>%
   )
 
 
-SWLS_heat =  ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = round(correlation, 2), 
+                fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), 
+            color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
-    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) + plot_aes
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
 
 SWLS_heat
 ```
-
-
-```{r eval=FALSE, fig.height=7, fig.width=7, include=FALSE}
-
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/SDP/SWLS_SWLS_SDP.RDS")) {
-  # If the file doesn't exist, perform the analysis
- SWLS_SWLS_PWB_SDP <- textProjection(
-    words = text_embed$SWLS,
-    word_embeddings = embeddings$texts$SWLS,
-    word_types_embeddings = embeddings$word_types$SWLS,
-    x = df$`SWLS mean`,
-    y = df$`PWB mean`)
-  # Save the results in an RDS file
-  saveRDS(SWLS_SWLS_PWB_SDP, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/SDP/SWLS_SWLS_SDP.RDS")
-} else {
-  # If the file exists, load the results from the RDS file
-  SWLS_SWLS_PWB_SDP <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/SDP/SWLS_SWLS_SDP.RDS")
-}
-# Filter the DataFrame based on your criteria
-#stat sig words with freq > 10 
-
-SWLS_SWLS_PWB <- textProjectionPlot(
-  word_data = SWLS_SWLS_PWB_SDP,
-  k_n_words_to_test = FALSE,
-  min_freq_words_test = 10,
-  min_freq_words_plot = 10,
-  plot_n_words_square = 10,
-  plot_n_words_p = 10,
-  plot_n_word_extreme = 10,
-  plot_n_word_frequency = 10,
-  plot_n_words_middle = 5,
-  titles_color = "black",
-  y_axes = T,
-  p_alpha = 0.05,
-  title_top = "Supervised Dimension Projection:\nSWLS Responses ~~ Well-being Ratings (Entire Corpus)",
-  x_axes_label = "Low vs High SWLS Scores",
-  y_axes_label = "Low vs High PWB Scores",
-  scale_x_axes_lim = NULL,
-  scale_y_axes_lim = NULL,
-  word_font = "Futura Medium",
-  bivariate_color_codes = c("#398CF9", "#60A1F7", "#40DD52", 
-                            "#e07f6a", "#EAEAEA","#5dc688", 
-                            "#FF0000", "#EA7467", "#85DB8E"),
-  word_size_range = c(2, 6),
-  position_jitter_hight = 0,
-  position_jitter_width = 0.03,
-  point_size = 0.5,
-  arrow_transparency = 0.1,
-  points_without_words_size = 0.2,
-  points_without_words_alpha = 0.2,
-  legend_title = "SDP",
-  legend_x_axes_label = "x",
-  legend_y_axes_label = "y",
-  legend_x_position = 0.02,
-  legend_y_position = 0.02,
-  legend_h_size = 0.2,
-  legend_w_size = 0.2,
-  legend_title_size = 7,
-  legend_number_size = 2,
-  group_embeddings1 = FALSE,
-  group_embeddings2 = FALSE,
-  projection_embedding = FALSE,
-  aggregated_point_size = 0.8,
-  aggregated_shape = 8,
-  aggregated_color_G1 = "black",
-  aggregated_color_G2 = "black",
-  projection_color = "blue",
-  seed = 1005,
-  explore_words = NULL,
-  explore_words_color = "#ad42f5",
-  explore_words_point = "ALL_1",
-  explore_words_aggregation = "mean",
-  remove_words = NULL,
-  n_contrast_group_color = NULL,
-  n_contrast_group_remove = FALSE,
-  space = NULL,
-  scaling = FALSE
-)
-
-SWLS_SWLS_PWB$final_plot
-```
-
-
 
 ## Autonomy {.tabset}
 
@@ -483,105 +431,27 @@ Autonomy_subscale_results <- Autonomy_subscale_results %>%
   )
 
 
-Autonomy_heat =  ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = round(correlation, 2), 
+                fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), 
+            color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
-    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) + plot_aes
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
 
 Autonomy_heat
-```
-
-### Autonomy Words Related to Overall Well-being
-
-```{r eval=FALSE, fig.height=7, fig.width=7, include=FALSE}
-
-
-
-if (!file.exists("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/SDP/Autonomy_SWLS_PWB_SDP.RDS")) {
-  # If the file doesn't exist, perform the analysis
- Autonomy_SWLS_PWB <- textProjection(
-    words = text_embed$Autonomy,
-    word_embeddings = embeddings$texts$Autonomy,
-    word_types_embeddings = embeddings$word_types$Autonomy,
-    x = df$`SWLS mean`,
-    y = df$`PWB mean`)
-  # Save the results in an RDS file
-  saveRDS(Autonomy_SWLS_PWB, "/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/SDP/Autonomy_SWLS_PWB_SDP.RDS")
-} else {
-  # If the file exists, load the results from the RDS file
-  Autonomy_SWLS_PWB <- readRDS("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/well-being-prediction/models/SDP/Autonomy_SWLS_PWB_SDP.RDS")
-}
-# Filter the DataFrame based on your criteria
-#stat sig words with freq > 10 
-
-Autonomy_SWLS_PWB_SDP <- textProjectionPlot(
-  word_data = Autonomy_SWLS_PWB,
-  k_n_words_to_test = FALSE,
-  min_freq_words_test = 10,
-  min_freq_words_plot = 10,
-  plot_n_words_square = 10,
-  plot_n_words_p = 10,
-  plot_n_word_extreme = 10,
-  plot_n_word_frequency = 10,
-  plot_n_words_middle = 5,
-  titles_color = "black",
-  y_axes = T,
-  p_alpha = 0.05,
-  title_top = "Supervised Dimension Projection:\n Autonomy Responses ~~ Well-being Ratings (Entire Corpus)",
-  x_axes_label = "Low vs High SWLS Scores",
-  y_axes_label = "Low vs High PWB Scores",
-  scale_x_axes_lim = NULL,
-  scale_y_axes_lim = NULL,
-  word_font = "Futura Medium",
-  bivariate_color_codes = c("#398CF9", "#60A1F7", "#40DD52", 
-                            "#e07f6a", "#EAEAEA","#5dc688", 
-                            "#FF0000", "#EA7467", "#85DB8E"),
-  word_size_range = c(2, 6),
-  position_jitter_hight = 0,
-  position_jitter_width = 0.03,
-  point_size = 0.5,
-  arrow_transparency = 0.1,
-  points_without_words_size = 0.2,
-  points_without_words_alpha = 0.2,
-  legend_title = "SDP",
-  legend_x_axes_label = "x",
-  legend_y_axes_label = "y",
-  legend_x_position = 0.02,
-  legend_y_position = 0.02,
-  legend_h_size = 0.2,
-  legend_w_size = 0.2,
-  legend_title_size = 7,
-  legend_number_size = 2,
-  group_embeddings1 = FALSE,
-  group_embeddings2 = FALSE,
-  projection_embedding = FALSE,
-  aggregated_point_size = 0.8,
-  aggregated_shape = 8,
-  aggregated_color_G1 = "black",
-  aggregated_color_G2 = "black",
-  projection_color = "blue",
-  seed = 1005,
-  explore_words = NULL,
-  explore_words_color = "#ad42f5",
-  explore_words_point = "ALL_1",
-  explore_words_aggregation = "mean",
-  remove_words = NULL,
-  n_contrast_group_color = NULL,
-  n_contrast_group_remove = FALSE,
-  space = NULL,
-  scaling = FALSE
-)
-
-Autonomy_SWLS_PWB_SDP$final_plot
 ```
 
 ## All heatmaps (all data)
@@ -998,20 +868,25 @@ SWLS_subscale_results <- SWLS_subscale_results %>%
   )
 
 
-SWLS_heat =  ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = round(correlation, 2), 
+                fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), 
+            color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
-    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) + plot_aes
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
 
 SWLS_heat
 ```
@@ -1092,20 +967,25 @@ Autonomy_subscale_results <- Autonomy_subscale_results %>%
   )
 
 
-Autonomy_heat =  ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = round(correlation, 2), 
+                fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), 
+            color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
-    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) + plot_aes
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
 
 SWLS_heat
 ```
@@ -1520,20 +1400,25 @@ SWLS_subscale_results <- SWLS_subscale_results %>%
   )
 
 
-SWLS_heat =  ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = round(correlation, 2), 
+                fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), 
+            color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
-    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) + plot_aes
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
 
 SWLS_heat
 ```
@@ -1614,20 +1499,25 @@ Autonomy_subscale_results <- Autonomy_subscale_results %>%
   )
 
 
-Autonomy_heat =  ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 3)), color = "black", size = 4) +
+  geom_text(aes(label = round(correlation, 2), 
+                fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), 
+            color = "black", size = 4) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
-    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) + plot_aes
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
 
 Autonomy_heat
 ```
