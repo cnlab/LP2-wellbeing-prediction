@@ -174,7 +174,7 @@ process_results <- function(result_list) {
 
 ```{r load-data}
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
-df = read.csv(file.path(data_dir,"/data_prediction/phonic-data/wave1/LP2_transcriptions_behavioral.csv"))
+df = read.csv(file.path(data_dir,"/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv"))
 df <- df %>%
 filter(rowSums(is.na(select(., starts_with("post")))) == 0)
 embeddings <- read_rds("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/embeddings/Study1_post__embeddings.rds")
@@ -786,23 +786,39 @@ combined_df <- rbind(autonomy_results,accept_results, affect_results, growth_res
   combined_df <- readRDS(rds_file_path)
 }
 
+combined_df <- combined_df %>%
+  mutate(outcome = case_when(
+    outcome == "relationships" ~ paste0(outcome, " (PWB)"),
+    outcome == "autonomy" ~ paste0(outcome, " (PWB)"),
+    outcome == "environmental mastery" ~ paste0(outcome, " (PWB)"),
+    outcome == "growth" ~ paste0(outcome, " (PWB)"),
+    outcome == "purpose" ~ paste0(outcome, " (PWB)"),
+    outcome == "acceptance" ~ paste0(outcome, " (PWB)"),
+    TRUE ~ outcome  # This keeps the original value for any other cases
+  ))
+
 all_heat <- ggplot(combined_df, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
-  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+  geom_text(aes(label = round(r, 2), 
+                fontface = ifelse(p.value < 0.05, "bold", "plain")), 
+            color = "black", size = 4) +
+  geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
-    geom_text(data = subset(combined_df, p.value < 0.05), aes(label = "*", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(combined_df, p.value < 0.01), aes(label = "**", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) +
-    geom_text(data = subset(combined_df, p.value < 0.001), aes(label = "***", x = prompt, y = outcome, hjust = 1),
-              color = "black", size = 4, vjust = -0.5) + 
-    ggtitle("Subscale Predicition") +  plot_aes  +  
+  geom_text(data = subset(combined_df, p.value < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(combined_df, p.value < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(combined_df, p.value < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  ggtitle("Subscale Prediction") +  plot_aes  +  
   theme(
     plot.title = element_text(hjust = 0.5, vjust = 1.5)
-  ) 
+  )
 
 all_heat
 

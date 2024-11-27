@@ -8,3 +8,4 @@ data/
 *.RDS
 *.Rapp.history
 *.RData
+*.csv
