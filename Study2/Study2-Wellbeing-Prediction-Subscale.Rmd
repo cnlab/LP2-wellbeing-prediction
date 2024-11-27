@@ -18,7 +18,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "item_level/item_")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "Study2_figs/fig_")
 options(scipen=999)
 ```
 
@@ -321,7 +321,7 @@ saveRDS(SWLS_subscale_results,file.path(data_dir,"models/prelim-analyses/SWLS_su
 
 ### Heatmaps
 
-```{r}
+```{r SWLS-heat}
 
 SWLS_subscale_results <- SWLS_subscale_results %>%
   mutate(
@@ -420,7 +420,7 @@ saveRDS(Autonomy_subscale_results,file.path(data_dir,"models/prelim-analyses/Aut
 
 ### Heatmaps 
 
-```{r}
+```{r autonomy-heat}
 Autonomy_subscale_results <- Autonomy_subscale_results %>%
   mutate(
     correlation = as.numeric(correlation),

@@ -18,7 +18,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "item_level/subscale_")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "Study1_fig/fig_")
 options(scipen=999)
 ```
 
@@ -257,7 +257,7 @@ table(autonomy_results)
 
 #### Heatmap
 
-```{r fig.height=6, fig.width=6}
+```{r autonomy-subscale, fig.height=6, fig.width=6}
 autonomy_heat <- ggplot(autonomy_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
@@ -354,7 +354,7 @@ table(accept_results)
 
 #### Heatmap
 
-```{r}
+```{r acceptance-heat}
 accept_heat <- ggplot(accept_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
@@ -453,7 +453,7 @@ table(affect_results)
 
 #### Heatmap
 
-```{r fig.height=6, fig.width=6}
+```{r affect-heat, fig.height=6, fig.width=6}
 affect_heat <- ggplot(affect_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
@@ -549,7 +549,7 @@ table(growth_results)
 
 #### Heatmap
 
-```{r}
+```{r growth-heat}
 growth_heat <- ggplot(growth_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
@@ -647,7 +647,7 @@ table(purpose_results)
 
 #### Heatmap
 
-```{r fig.height=6, fig.width=6}
+```{r purpose-heat, fig.height=6, fig.width=6}
 purpose_heat <- ggplot(purpose_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
@@ -743,7 +743,7 @@ table(relations_results)
 
 #### Heatmap
 
-```{r fig.height=6, fig.width=6}
+```{r relations-heat, fig.height=6, fig.width=6}
 relations_heat <- ggplot(relations_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
   geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
