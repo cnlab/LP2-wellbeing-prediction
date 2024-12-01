@@ -43,7 +43,7 @@ textrpp_initialize()
 
 ```{r}
 plot_aes = theme_minimal() +
-  theme(legend.position = "top",
+  theme(legend.position = "none",
         legend.text = element_text(size = 6),
         text = element_text(size = 12, family = "Futura Medium"),
         axis.text = element_text(color = "black"),

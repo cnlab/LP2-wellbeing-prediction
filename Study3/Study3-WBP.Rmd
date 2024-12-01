@@ -112,6 +112,48 @@ table <- function(correlation_data) {
             options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
 }
 
+process_results <- function(result_list) {
+  results <- data.frame(
+    model = character(),
+    statistic = numeric(),
+    parameter = integer(),
+    p.value = numeric(),
+    r = numeric(),
+    null.value = numeric(),
+    alternative = character(),
+    method = character(),
+    data.name = character(),
+    conf.int_low = numeric(),
+    conf.int_high = numeric(),
+    stringsAsFactors = FALSE
+  )
+
+  for (model_name in names(result_list)) {
+    # Extract the relevant information from the current data frame
+    current_result <- result_list[[model_name]]
+    
+    # Create a data frame for the current result
+    result_df <- data.frame(
+      model = model_name,
+      statistic = current_result$statistic,
+      parameter = current_result$parameter,
+      p.value = current_result$p.value,
+      r = current_result$estimate,
+      null.value = current_result$null.value,
+      alternative = current_result$alternative,
+      method = current_result$method,
+      data.name = current_result$data.name,
+      conf.int_low = current_result$conf.int[1],
+      conf.int_high = current_result$conf.int[2]
+    )
+    
+    # Add the data frame to autonomy_results
+    results <- rbind(results, result_df)
+  }
+
+  return(results)
+}
+
 
 
 ```
@@ -216,8 +258,6 @@ alpha_results %>%
 
 ## Satisfaction with Life {.tabset}
 
-### Models {.tabset}
-
 ```{r}
 rds_file_path <- file.path(data_dir, "models/Study3/SWLS_subscale.RDS") #update with the path to each model
 
@@ -285,7 +325,6 @@ SWLS_subscale_results <-
                      gsub(".*`SWLS-Text`_", "", descriptions),
                      NA))
 
-table(SWLS_subscale_results)
 
 saveRDS(SWLS_subscale_results,file.path(data_dir,"models/Study3/SWLS_subscale_results.RDS"))
 ```
@@ -330,7 +369,7 @@ SWLS_heat
 
 ## Autonomy {.tabset}
 
-### Models
+
 
 ```{r}
 rds_file_path_autonomy <- file.path(data_dir, "models/Study3/autonomy_subscale.RDS")
@@ -391,11 +430,12 @@ Autonomy_subscale_results <-
                      gsub(".*`Autonomy-Text`_", "", descriptions),
                      NA)
   )
-table(Autonomy_subscale_results)
 
 saveRDS(Autonomy_subscale_results,file.path(data_dir,"models/Study3/Autonomy_subscale_results.RDS"))
 
 ```
+
+
 
 ### Heatmaps 
 
@@ -433,11 +473,63 @@ Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
 Autonomy_heat
 ```
 
+## All Models
+
+```{r}
+result_list <- list(
+  autonomy_acceptance_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB self_acceptance`$results,
+  autonomy_autonomy_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB autonomy`$results,
+  autonomy_growth_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB personal_growth`$results,
+  autonomy_purpose_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB purpose`$results,
+  autonomy_relationships_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB positive_relations`$results,
+  autonomy_PWB_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB mean`$results,
+  autonomy_SWLS_sub = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_SWLS mean`$results
+)
+
+autonomy_results <- process_results(result_list)
+
+autonomy_results<- 
+  autonomy_results %>%
+  mutate(
+    prompt = ifelse(grepl("autonomy_", model), "autonomy", NA),
+    outcome = ifelse(grepl("_sub", model), gsub(".*autonomy_", "", gsub("_sub", "", model)), NA))
+
+result_list <- list(
+  SWLS_acceptance_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB self_acceptance`$results,
+  SWLS_autonomy_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB autonomy`$results,
+  SWLS_growth_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB personal_growth`$results,
+  SWLS_purpose_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB purpose`$results,
+  SWLS_relationships_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB positive_relations`$results,
+  SWLS_PWB_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB mean`$results,
+  SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_SWLS mean`$results
+)
+
+SWLS_results <- process_results(result_list)
+
+
+SWLS_results<- 
+  SWLS_results %>%
+  mutate(
+    prompt = ifelse(grepl("SWLS_", model), "SWLS", NA),
+    outcome = ifelse(grepl("_sub", model), gsub(".*SWLS_", "", gsub("_sub", "", model)), NA))
+
+
+### bind 
+
+all_effects = rbind(autonomy_results,SWLS_results)
+
+all_effects |> 
+  mutate_if(is.numeric, ~round(., 3)) |>
+  DT::datatable(extensions = 'FixedColumns', 
+                filter = list(position = 'top', clear = FALSE),
+                options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+
+```
 
 ## All heatmaps (all data)
 
 ```{r all-heat}
-all_heat = ggarrange(Autonomy_heat, SWLS_heat, ncol = 2,nrow = 1, common.legend = T)
+all_heat = ggarrange(Autonomy_heat, SWLS_heat, ncol = 2,nrow = 1, common.legend = F)
 
 all_heat +
   ggtitle("Subscale Predictions") +
@@ -448,6 +540,8 @@ all_heat +
     plot.caption = element_text(hjust = 1, size = 10)
   ) 
 ```
+
+
 
 ```{r}
 # extract confidence intervals for each model

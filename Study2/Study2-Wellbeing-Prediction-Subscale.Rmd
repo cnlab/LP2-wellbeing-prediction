@@ -314,7 +314,7 @@ SWLS_subscale_results <-
                      gsub(".*SWLS_", "", descriptions),
                      NA))
 
-table(SWLS_subscale_results)
+table(all_effects)
 
 saveRDS(SWLS_subscale_results,file.path(data_dir,"models/prelim-analyses/SWLS_subscale_results.RDS"))
 ```
@@ -457,7 +457,7 @@ Autonomy_heat
 ## All heatmaps (all data)
 
 ```{r all-heat}
-all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = T)
+all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = F)
 
 all_heat +
   ggtitle("Subscale Predictions") +
@@ -466,6 +466,8 @@ all_heat +
     plot.title = element_text(hjust = 0.5, vjust = 1.5)
   ) 
 ```
+
+
 
 
 ## Effects Plot
@@ -685,6 +687,19 @@ ggplot(plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = conf.int_h
 
 
 ```
+
+## All Results
+
+```{r}
+all_effects |> 
+  mutate_if(is.numeric, ~round(., 3)) |>
+  DT::datatable(extensions = 'FixedColumns', 
+                filter = list(position = 'top', clear = FALSE),
+                options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+
+
+```
+
 
 # Text only Responses {.tabset}
 
