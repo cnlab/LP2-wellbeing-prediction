@@ -292,7 +292,7 @@ affect_item_results <- affect_item_results %>%
 
 affect_heat <- ggplot(affect_item_results, aes(x = prompt, y = SWLS, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 2)), color = "black", size = 10) +
+  geom_text(aes(label = round(correlation, 2), fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), color = "black", size = 10) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 7, vjust = 2) +
   scale_fill_gradient2(low = "dodgerblue",                        
                        mid = "#FFFFCC",                       
@@ -422,7 +422,7 @@ purpose_item_results <- purpose_item_results %>%
 
 purpose_heat <- ggplot(purpose_item_results, aes(x = prompt, y = purpose, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
+    geom_text(aes(label = round(correlation, 2), fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), color = "black", size = 10) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) +
    scale_fill_gradient2(low = "dodgerblue",                        
                        mid = "#FFFFCC",                       
@@ -550,7 +550,7 @@ relationships_results <- relationships_results %>%
 
 relationships_heat <- ggplot(relationships_results, aes(x = prompt, y = relationships, fill = correlation)) +
   geom_tile(color = "white") +
- geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
+  geom_text(aes(label = round(correlation, 2), fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), color = "black", size = 10) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) +
    scale_fill_gradient2(low = "dodgerblue",                        
                        mid = "#FFFFCC",                       
@@ -809,7 +809,7 @@ growth_results <- growth_results %>%
 growth_heat <- 
 ggplot(growth_results, aes(x = prompt, y = growth, fill = correlation)) +
   geom_tile(color = "white") +
- geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
+  geom_text(aes(label = round(correlation, 2), fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), color = "black", size = 10) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) +
  scale_fill_gradient2(low = "dodgerblue",                        
                        mid = "#FFFFCC",                       
@@ -941,7 +941,7 @@ autonomy_results <- autonomy_results %>%
 autonomy_heat <- 
   ggplot(autonomy_results, aes(x = prompt, y = autonomy, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 2)), color = "black", size = 12) +
+  geom_text(aes(label = round(correlation, 2), fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), color = "black", size = 10) +
   geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 9, vjust = 2) + # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",                        
                        mid = "#FFFFCC",                       

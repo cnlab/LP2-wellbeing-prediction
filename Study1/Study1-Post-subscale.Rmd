@@ -819,7 +819,6 @@ all_heat <- ggplot(combined_df, aes(x = prompt, y = outcome, fill = r)) +
   theme(
     plot.title = element_text(hjust = 0.5, vjust = 1.5)
   )
-
 all_heat
 
 ```
