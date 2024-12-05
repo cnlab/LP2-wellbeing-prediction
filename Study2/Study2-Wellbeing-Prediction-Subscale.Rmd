@@ -314,7 +314,6 @@ SWLS_subscale_results <-
                      gsub(".*SWLS_", "", descriptions),
                      NA))
 
-table(all_effects)
 
 saveRDS(SWLS_subscale_results,file.path(data_dir,"models/prelim-analyses/SWLS_subscale_results.RDS"))
 ```
