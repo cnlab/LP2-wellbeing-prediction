@@ -85,7 +85,7 @@ ggplot(plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = pmin(conf.
   scale_color_manual(values = palette) +
   scale_alpha_manual(values = c(0.1, 1), guide = FALSE) +  # Set alpha values
   labs(title = "Language-based Assessments\nPredicting Well-being",
-       x = "Pearson's Product Moment Correlation",
+       x = "Pearson's Correlation (r)",
        y = "Psychological Outcome",
        color = "Prompt Type") +
   plot_aes + 

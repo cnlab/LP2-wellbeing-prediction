@@ -6,14 +6,19 @@ textrpp_install()
 textrpp_initialize()
 
 
+
+
 #load embeddngs 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/embeddings/all_embeddings.rds")
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/surveys_scored/LP2_transcriptions_behavioral.csv")
+
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
+df <- read_csv(file.path(data_dir,"/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv"))
+embeddings <- readRDS(file.path(data_dir,"/data_prediction/embeddings/study_1/all_embeddings.rds"))
+
 
 #######Subscale Prediction######################################################################################  
 
 #Setworking directory to where we want the Subscale models ot live
-setwd("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/autonomy")
+setwd("/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/autonomy")
 ##################Autonomy######################################################################################
 
 ####Autonomy Predicting Autonomy############################################################################### 
@@ -134,4 +139,22 @@ if (!file.exists("autonomy_SWLS_sub.RDS")) {
 } else {
   # If the RDS file already exists, load the data from it
   autonomy_SWLS_sub <- readRDS("autonomy_SWLS_sub.RDS")
+}
+
+
+####Autonomy mastery############################################################################### 
+if (!file.exists("autonomy_mastery_sub.RDS")) {
+  autonomy_mastery_sub <- textTrainRegression(
+    x =embeddings$texts[1:3], # the three autonomy prompts
+    y = df$pre_PWB_environmental_mastery, #predicting autonomy 
+    method_cor = "pearson",
+    model_description = "Autonomy embeddings prediciting mastery Subscale Ratings",
+    multi_cores = T,
+    save_output = "all",)
+  
+  # Save the model output to an RDS file
+  saveRDS(autonomy_mastery_sub, "autonomy_mastery_sub.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  autonomy_mastery_sub <- readRDS("autonomy_mastery_sub.RDS")
 }

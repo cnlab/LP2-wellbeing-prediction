@@ -7,15 +7,16 @@ textrpp_initialize()
 
 
 #load embeddngs 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/embeddings/all_embeddings.rds")
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/surveys_scored/LP2_transcriptions_behavioral.csv")
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
+df <- read_csv(file.path(data_dir,"/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv"))
+embeddings <- readRDS(file.path(data_dir,"/data_prediction/embeddings/study_1/all_embeddings.rds"))
 
 #######Subscale Prediction######################################################################################  
 
 
 
 #Setworking directory to where we want the Subscale models ot live
-setwd("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/acceptance")
+setwd("/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/acceptance")
 ##################purposehips######################################################################################
 
 
@@ -143,4 +144,22 @@ if (!file.exists("accept_SWLS_sub.RDS")) {
   # If the RDS file already exists, load the data from it
   accept_PWB_sub <- readRDS("accept_SWLS_sub.RDS")
 }
+
+####accept mastery############################################################################### 
+if (!file.exists("accept_mastery_sub.RDS")) {
+  accept_mastery_sub <- textTrainRegression(
+    x = embeddings$texts[16:18], # the three accept prompts
+    y = df$pre_PWB_environmental_mastery, #predicting autonomy 
+    method_cor = "pearson",
+    model_description = "accept embeddings prediciting mastery Subscale Ratings",
+    multi_cores = T,
+    save_output = "all",)
+  
+  # Save the model output to an RDS file
+  saveRDS(accept_mastery_sub, "accept_mastery_sub.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  accept_mastery_sub <- readRDS("accept_mastery_sub.RDS")
+}
+
 

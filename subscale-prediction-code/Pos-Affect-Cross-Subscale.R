@@ -167,3 +167,30 @@ if (!file.exists(rds_file_path)) {
   affect_SWLS_sub <- readRDS(rds_file_path)
 }
 })
+
+
+
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
+df <- read_csv(file.path(data_dir,"/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv"))
+embeddings <- readRDS(file.path(data_dir,"/data_prediction/embeddings/study_1/all_embeddings.rds"))
+
+#######Subscale Prediction######################################################################################  
+
+#Setworking directory to where we want the Subscale models ot live
+setwd("/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/affect")
+
+if (!file.exists("affect_mastery_sub.RDS")) {
+  affect_mastery_sub <- textTrainRegression(
+    x = embeddings$texts[7:9], # the three accept prompts
+    y = df$pre_PWB_environmental_mastery, #predicting autonomy 
+    method_cor = "pearson",
+    model_description = "pos affect embeddings prediciting mastery Subscale Ratings",
+    multi_cores = T,
+    save_output = "all",)
+  
+  # Save the model output to an RDS file
+  saveRDS(affect_mastery_sub, "affect_mastery_sub.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  affect_mastery_sub <- readRDS("affect_mastery_sub.RDS")
+}

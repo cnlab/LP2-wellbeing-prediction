@@ -526,7 +526,9 @@ all_effects |>
   DT::datatable(extensions = 'FixedColumns', 
                 filter = list(position = 'top', clear = FALSE),
                 options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+all_effects = rbind(autonomy_results,SWLS_results)
 
+saveRDS(all_effects,file.path(data_dir,"models/prelim-analyses/study3_all_effects.RDS"))
 ```
 
 ## All heatmaps (all data)
@@ -644,9 +646,7 @@ SWLS_results<-
 
 ### bind 
 
-all_effects = rbind(autonomy_results,SWLS_results)
 
-saveRDS(all_effects,file.path(data_dir,"models/prelim-analyses/study3_all_effects.RDS"))
 
 
 ```
