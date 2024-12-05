@@ -10,3 +10,4 @@ data/
 *.RData
 *.csv
 /subscale-models-post
+*.knit.md

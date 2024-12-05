@@ -613,7 +613,8 @@ result_list <- list(
   autonomy_purpose_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB purpose`$results,
   autonomy_relationships_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB positive_relations`$results,
   autonomy_PWB_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB mean`$results,
-  autonomy_SWLS_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_SWLS mean`$results
+  autonomy_SWLS_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_SWLS mean`$results,
+  autonomy_mastery_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB environmental_mastery`$results
 )
 
 autonomy_results <- process_results(result_list)
@@ -635,7 +636,9 @@ result_list <- list(
   SWLS_purpose_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB purpose`$results,
   SWLS_relationships_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB positive_relations`$results,
   SWLS_PWB_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB mean`$results,
-  SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_SWLS mean`$results
+  SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_SWLS mean`$results,
+  SWLS_mastery_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB environmental_mastery`$results
+
 )
 
 SWLS_results <- process_results(result_list)
