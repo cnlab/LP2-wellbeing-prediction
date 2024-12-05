@@ -7,13 +7,21 @@ textrpp_initialize()
 
 
 #load embeddngs 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/embeddings/all_embeddings.rds")
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/surveys_scored/LP2_transcriptions_behavioral.csv")
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
+df <- read_csv(file.path(data_dir,"/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv"))
 
-#######Subscale Prediction######################################################################################  
+### keep only people with post data 
+df <- df %>%
+  filter(rowSums(is.na(select(., starts_with("post")))) == 0)
+
+
+embeddings <- read_rds("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/embeddings/Study1_post__embeddings.rds")
+
+
+##Subscale Prediction######################################################################################  
 
 #Setworking directory to where we want the Subscale models ot live
-setwd("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/relations")
+setwd("/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-wellbeing-prediction/subscale-models-post/relations")
 ##################relationships######################################################################################
 
 
@@ -143,3 +151,25 @@ if (!file.exists("relations_growth_sub.RDS")) {
     relations_SWLS_sub <- readRDS("relations_SWLS_sub.RDS")
   }
 })
+
+
+
+setwd("/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-wellbeing-prediction/subscale-models-post/relations")
+###mastery 
+if (!file.exists("relations_mastery_sub.RDS")) {
+  relations_mastery_sub <- textTrainRegression(
+    x = embeddings$texts[13:15], # the three relations prompts
+    y = df$post_PWB_environmental_mastery, #predicting relations 
+    method_cor = "pearson",
+    model_description = "relations embeddings prediciting Mastery Subscale Ratings",
+    multi_cores = T,
+    save_output = "all",)
+  
+  # Save the model output to an RDS file
+  saveRDS(relations_mastery_sub, "relations_mastery_sub.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  relations_mastery_sub <- readRDS("relations_mastery_sub.RDS")
+}
+
+

@@ -13,7 +13,7 @@ textrpp_initialize()
 
 
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
-df = read.csv(file.path(data_dir,"/data_prediction/phonic-data/wave1/LP2_transcriptions_behavioral.csv"))
+df <- read_csv(file.path(data_dir,"/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv"))
 
 ### keep only people with post data 
 df <- df %>%
@@ -169,3 +169,26 @@ if (!file.exists(rds_file_path)) {
   # If the RDS file already exists, load the data from it
   growth_SWLS_sub <- readRDS(rds_file_path)
 }
+
+
+###mastery 
+
+rds_file_path <- file.path(model_dir, "growth_mastery_sub.RDS") #update with the path to each model
+
+
+if (!file.exists(rds_file_path)) {
+  growth_mastery_sub <- textTrainRegression(
+    x = embeddings$texts[4:6], # the three growth prompts
+    y = df$post_PWB_environmental_mastery, #predicting growth 
+    method_cor = "pearson",
+    model_description = "growth embeddings prediciting mastery Subscale Ratings",
+    multi_cores = T,
+    save_output = "all",)
+  
+  # Save the model output to an RDS file
+  saveRDS(growth_mastery_sub, rds_file_path)
+} else {
+  # If the RDS file already exists, load the data from it
+  growth_mastery_sub <- readRDS(rds_file_path)
+}
+

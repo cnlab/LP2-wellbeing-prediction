@@ -7,13 +7,19 @@ textrpp_initialize()
 
 
 #load embeddngs 
-embeddings <- read_rds("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/embeddings/all_embeddings.rds")
-df <- read_csv("/Users/stevenmesquiti/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/surveys_scored/LP2_transcriptions_behavioral.csv")
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
+df <- read_csv(file.path(data_dir,"/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv"))
 
+### keep only people with post data 
+df <- df %>%
+  filter(rowSums(is.na(select(., starts_with("post")))) == 0)
+
+
+embeddings <- read_rds("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/embeddings/Study1_post__embeddings.rds")
 #######Subscale Prediction######################################################################################  
 
 #Setworking directory to where we want the Subscale models ot live
-setwd("/Users/stevenmesquiti/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/Subscale-Models/affect")
+setwd("/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-wellbeing-prediction/subscale-models-post/affect")
 ##################Personal affect######################################################################################
 
 ####Pos Affect Predicting Autonomy############################################################################### 
@@ -142,3 +148,20 @@ if (!file.exists("affect_SWLS_sub.RDS")) {
   affect_SWLS_sub <- readRDS("affect_SWLS_sub.RDS")
 }
 })
+
+
+if (!file.exists("affect_mastery_sub.RDS")) {
+  affect_mastery_sub <- textTrainRegression(
+    x = embeddings$texts[7:9], # the three affect prompts
+    y = df$post_PWB_environmental_mastery, #predicting affect 
+    method_cor = "pearson",
+    model_description = "affect embeddings prediciting Mastery Subscale Ratings",
+    multi_cores = T,
+    save_output = "all",)
+  
+  # Save the model output to an RDS file
+  saveRDS(affect_mastery_sub, "affect_mastery_sub.RDS")
+} else {
+  # If the RDS file already exists, load the data from it
+  affect_mastery_sub <- readRDS("affect_mastery_sub.RDS")
+}

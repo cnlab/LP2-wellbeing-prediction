@@ -178,7 +178,7 @@ df = read.csv(file.path(data_dir,"/data_prediction/surveys_scored/LP2_transcript
 df <- df %>%
 filter(rowSums(is.na(select(., starts_with("post")))) == 0)
 embeddings <- read_rds("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/embeddings/Study1_post__embeddings.rds")
-model_dir = "/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-wellbeing-prediction/subscale-models-post/"
+model_dir = "/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-wellbeing-prediction/subscale-models-post"
 ```
 
 # Subscale Predicition {.tabset}
@@ -215,7 +215,8 @@ result_list <- list(
   autonomy_purpose_sub = autonomy_purpose_sub$results,
   autonomy_relationships_sub = autonomy_relationships_sub$results,
   autonomy_PWB_sub = autonomy_PWB_sub$results,
-  autonomy_SWLS_sub = autonomy_SWLS_sub$results
+  autonomy_SWLS_sub = autonomy_SWLS_sub$results,
+  autonomy_mastery_sub = autonomy_mastery_sub$results
 )
 
 autonomy_results <- process_results(result_list)
@@ -229,7 +230,8 @@ result_list <- list(
   autonomy_purpose_sub = autonomy_purpose_sub,
   autonomy_relationships_sub = autonomy_relationships_sub,
   autonomy_PWB_sub = autonomy_PWB_sub,
-  autonomy_SWLS_sub = autonomy_SWLS_sub
+  autonomy_SWLS_sub = autonomy_SWLS_sub,
+  autonomy_mastery_sub = autonomy_mastery_sub
 )
 
 # Calculate and store RMSE
@@ -316,11 +318,10 @@ result_list <- list(
   accept_purpose_sub = accept_purpose_sub$results,
   accept_relationships_sub = accept_relationships_sub$results,
   accept_PWB_sub = accept_PWB_sub$results,
-  accept_SWLS_sub = accept_SWLS_sub$results
+  accept_SWLS_sub = accept_SWLS_sub$results,
+  accept_mastery_sub = accept_mastery_sub$results
 )
 accept_results <- process_results(result_list)
-
-
 
 result_list <- list(
 accept_acceptance_sub = accept_acceptance_sub,
@@ -329,7 +330,8 @@ accept_acceptance_sub = accept_acceptance_sub,
   accept_purpose_sub = accept_purpose_sub,
   accept_relationships_sub = accept_relationships_sub,
   accept_PWB_sub = accept_PWB_sub,
-  accept_SWLS_sub = accept_SWLS_sub)
+  accept_SWLS_sub = accept_SWLS_sub,
+  accept_mastery_sub = accept_mastery_sub)
 
 # Calculate and store RMSE
 accept_RMSE <- calculate_and_store_rmse(result_list)
@@ -383,7 +385,6 @@ accept_heat
 
 ```{r}
 
-
 rds_file_path <- file.path(model_dir, "affect/affect_results.RDS") #update with the path to each model
 affect_path <- file.path(model_dir,"/affect")
 
@@ -414,7 +415,8 @@ result_list <- list(
   affect_purpose_sub = affect_purpose_sub$results,
   affect_relationships_sub = affect_relationships_sub$results,
   affect_PWB_sub = affect_PWB_sub$results,
-  affect_SWLS_sub = affect_SWLS_sub$results
+  affect_SWLS_sub = affect_SWLS_sub$results,
+  affect_mastery_sub = affect_mastery_sub$results
 )
 affect_results <- process_results(result_list)
 
@@ -427,7 +429,8 @@ result_list <- list(
   affect_purpose_sub = affect_purpose_sub,
   affect_relationships_sub = affect_relationships_sub,
   affect_PWB_sub = affect_PWB_sub,
-  affect_SWLS_sub = affect_SWLS_sub
+  affect_SWLS_sub = affect_SWLS_sub,
+  affect_mastery_sub = affect_mastery_sub
 )
 
 # Calculate and store RMSE
@@ -511,7 +514,8 @@ result_list <- list(
   growth_purpose_sub = growth_purpose_sub$results,
   growth_relationships_sub = growth_relationships_sub$results,
   growth_PWB_sub = growth_PWB_sub$results,
-  growth_SWLS_sub = growth_SWLS_sub$results
+  growth_SWLS_sub = growth_SWLS_sub$results,
+  growth_mastery_sub = growth_mastery_sub$results
 )
 growth_results <- process_results(result_list)
 
@@ -524,7 +528,8 @@ result_list <- list(
   growth_purpose_sub = growth_purpose_sub,
   growth_relationships_sub = growth_relationships_sub,
   growth_PWB_sub = growth_PWB_sub,
-  growth_SWLS_sub = growth_SWLS_sub
+  growth_SWLS_sub = growth_SWLS_sub,
+  growth_mastery_sub = growth_mastery_sub
 )
 
 # Calculate and store RMSE
@@ -608,7 +613,8 @@ result_list <- list(
   purpose_purpose_sub = purpose_purpose_sub$results,
   purpose_relationships_sub = purpose_relationships_sub$results,
   purpose_PWB_sub = purpose_PWB_sub$results,
-  purpose_SWLS_sub = purpose_SWLS_sub$results
+  purpose_SWLS_sub = purpose_SWLS_sub$results,
+  purpose_mastery_sub = purpose_mastery_sub$results
 )
 purpose_results <- process_results(result_list)
 
@@ -621,7 +627,8 @@ result_list <- list(
   purpose_purpose_sub = purpose_purpose_sub,
   purpose_relationships_sub = purpose_relationships_sub,
   purpose_PWB_sub = purpose_PWB_sub,
-  purpose_SWLS_sub = purpose_SWLS_sub
+  purpose_SWLS_sub = purpose_SWLS_sub,
+  purpose_mastery_sub = purpose_mastery_sub
 )
 
 # Calculate and store RMSE
@@ -677,8 +684,8 @@ purpose_heat
 
 ```{r}
 
-rds_file_path <- file.path(model_dir, "purpose/purpose_results.RDS") #update with the path to each model
-relations_path <- file.path(model_dir,"/purpose")
+rds_file_path <- file.path(model_dir, "relations/relations_results.RDS") #update with the path to each model
+relations_path <- file.path(model_dir,"/relations")
 
 if (!file.exists(rds_file_path)) {
 # List all files in the directory with the .RDS extension
@@ -706,7 +713,8 @@ result_list <- list(
   relations_purpose_sub = relations_purpose_sub$results,
   relations_relationships_sub = relations_relationships_sub$results,
   relations_PWB_sub = relations_PWB_sub$results,
-  relations_SWLS_sub = relations_SWLS_sub$results
+  relations_SWLS_sub = relations_SWLS_sub$results,
+  relations_mastery_sub = relations_mastery_sub$result
 )
 relations_results <- process_results(result_list)
 
@@ -719,7 +727,8 @@ result_list <- list(
   relations_purpose_sub = relations_purpose_sub,
   relations_relationships_sub = relations_relationships_sub,
   relations_PWB_sub = relations_PWB_sub,
-  relations_SWLS_sub = relations_SWLS_sub
+  relations_SWLS_sub = relations_SWLS_sub,
+  relations_mastery_sub = relations_mastery_sub
 )
 
 # Calculate and store RMSE
@@ -790,7 +799,7 @@ combined_df <- combined_df %>%
   mutate(outcome = case_when(
     outcome == "relationships" ~ paste0(outcome, " (PWB)"),
     outcome == "autonomy" ~ paste0(outcome, " (PWB)"),
-    outcome == "environmental mastery" ~ paste0(outcome, " (PWB)"),
+    outcome == "mastery" ~ paste0(outcome, " (PWB)"),
     outcome == "growth" ~ paste0(outcome, " (PWB)"),
     outcome == "purpose" ~ paste0(outcome, " (PWB)"),
     outcome == "acceptance" ~ paste0(outcome, " (PWB)"),

@@ -794,7 +794,7 @@ combined_df <- combined_df %>%
   mutate(outcome = case_when(
     outcome == "relationships" ~ paste0(outcome, " (PWB)"),
     outcome == "autonomy" ~ paste0(outcome, " (PWB)"),
-    outcome == "environmental mastery" ~ paste0(outcome, " (PWB)"),
+    outcome == "mastery" ~ paste0(outcome, " (PWB)"),
     outcome == "growth" ~ paste0(outcome, " (PWB)"),
     outcome == "purpose" ~ paste0(outcome, " (PWB)"),
     outcome == "acceptance" ~ paste0(outcome, " (PWB)"),
