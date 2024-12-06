@@ -247,7 +247,7 @@ alpha_results %>%
 
 ```
 
-# Question 1
+ # Question 1
 
 > Can language‑based assessments of participants’ well-being predict components of self-reported well-being? 
 
@@ -366,6 +366,16 @@ SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = c
 SWLS_heat
 ```
 
+### Model Results 
+
+```{r}
+SWLS_subscale_results |> 
+  mutate(across(where(is.numeric), ~ round(.x, 3))) |> 
+  DT::datatable(extensions = 'FixedColumns', 
+                filter = list(position = 'top', clear = FALSE),
+                options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+```
+
 
 ## Autonomy {.tabset}
 
@@ -472,6 +482,19 @@ Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
 
 Autonomy_heat
 ```
+
+### Model Results 
+
+```{r}
+### Model Results 
+
+Autonomy_subscale_results |> 
+  mutate(across(where(is.numeric), ~ round(.x, 3))) |> 
+  DT::datatable(extensions = 'FixedColumns', 
+                filter = list(position = 'top', clear = FALSE),
+                options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+```
+
 
 ## All Models
 

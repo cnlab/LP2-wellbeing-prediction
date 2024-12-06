@@ -619,7 +619,6 @@ result_list <- list(
 
 autonomy_results <- process_results(result_list)
 
-
 autonomy_results<- 
   autonomy_results %>%
   mutate(
@@ -627,7 +626,7 @@ autonomy_results<-
     outcome = ifelse(grepl("_sub", model), gsub(".*autonomy_", "", gsub("_sub", "", model)), NA))
 
 
-#### SWLA 
+#### SWLS
 
 result_list <- list(
   SWLS_acceptance_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB self_acceptance`$results,
