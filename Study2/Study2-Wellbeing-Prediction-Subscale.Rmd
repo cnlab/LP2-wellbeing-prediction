@@ -637,7 +637,6 @@ result_list <- list(
   SWLS_PWB_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB mean`$results,
   SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_SWLS mean`$results,
   SWLS_mastery_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB environmental_mastery`$results
-
 )
 
 SWLS_results <- process_results(result_list)
@@ -1157,7 +1156,9 @@ result_list <- list(
   autonomy_purpose_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB purpose`$results,
   autonomy_relationships_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB positive_relations`$results,
   autonomy_PWB_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB mean`$results,
-  autonomy_SWLS_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_SWLS mean`$results
+  autonomy_SWLS_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_SWLS mean`$results,
+  autonomy_mastery_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB environmental_mastery`$results
+
 )
 
 autonomy_results <- process_results(result_list)
@@ -1179,7 +1180,9 @@ result_list <- list(
   SWLS_purpose_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB purpose`$results,
   SWLS_relationships_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB positive_relations`$results,
   SWLS_PWB_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB mean`$results,
-  SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_SWLS mean`$results
+  SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_SWLS mean`$results,
+  SWLS_mastery_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB environmental_mastery`$results
+
 )
 
 SWLS_results <- process_results(result_list)
@@ -1226,6 +1229,16 @@ ggplot(text_plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = conf.
   geom_vline(xintercept = 0, linetype = "dashed")
 
 
+```
+
+## All Results (text)
+
+```{r}
+text_all_effects |> 
+  mutate_if(is.numeric, ~round(., 3)) |>
+  DT::datatable(extensions = 'FixedColumns', 
+                filter = list(position = 'top', clear = FALSE),
+                options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
 ```
 
 # Audio only Responses {.tabset}
@@ -1552,6 +1565,8 @@ all_heat +
   ) 
 ```
 
+
+
 ## Effects Plot
 
 ```{r audio-only-effects}
@@ -1696,7 +1711,9 @@ result_list <- list(
   autonomy_purpose_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB purpose`$results,
   autonomy_relationships_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB positive_relations`$results,
   autonomy_PWB_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB mean`$results,
-  autonomy_SWLS_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_SWLS mean`$results
+  autonomy_SWLS_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_SWLS mean`$results,
+  autonomy_mastery_sub = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB environmental_mastery`$results
+
 )
 
 autonomy_results <- process_results(result_list)
@@ -1718,7 +1735,8 @@ result_list <- list(
   SWLS_purpose_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB purpose`$results,
   SWLS_relationships_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB positive_relations`$results,
   SWLS_PWB_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB mean`$results,
-  SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_SWLS mean`$results
+  SWLS_SWLS_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_SWLS mean`$results,
+  SWLS_mastery_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB environmental_mastery`$results
 )
 
 SWLS_results <- process_results(result_list)
@@ -1765,6 +1783,16 @@ ggplot(audio_plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = conf
   geom_vline(xintercept = 0, linetype = "dashed")
 
 
+```
+
+## All Results (text)
+
+```{r}
+audio_all_effects |> 
+  mutate_if(is.numeric, ~round(., 3)) |>
+  DT::datatable(extensions = 'FixedColumns', 
+                filter = list(position = 'top', clear = FALSE),
+                options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
 ```
 
 # Comparing methods
