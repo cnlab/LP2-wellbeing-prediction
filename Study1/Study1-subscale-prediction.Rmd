@@ -175,13 +175,24 @@ model_dir = "/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-w
 
 ```
 
-# Correlations 
+# Correlations {.tabset}
+
+## Pre-Intervention
 
 ```{r}
 df_corr = df |> 
   select(pre_SWLS_mean,pre_PWB_mean,pre_PWB_autonomy,pre_PWB_environmental_mastery,pre_PWB_personal_growth,pre_PWB_purpose,pre_PWB_self_acceptance,pre_PWB_positive_relations) 
 
 apa.cor.table(df_corr,landscape = T,filename = file.path(data_dir,"Study1_correlation_matrix.doc"))
+```
+
+## Post-Intervention
+
+```{r}
+df_corr = df |> 
+  select(post_SWLS_mean,post_PWB_mean,post_PWB_autonomy,post_PWB_environmental_mastery,post_PWB_personal_growth,post_PWB_purpose,post_PWB_self_acceptance,post_PWB_positive_relations) 
+
+apa.cor.table(df_corr,landscape = T,filename = file.path(data_dir,"post_Study1_correlation_matrix.doc"))
 ```
 
 
