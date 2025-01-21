@@ -29,7 +29,7 @@ library(pacman)
 
 #setwd("~/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/item_level_analyses")
 
-pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,rsample, purrr,psych, tibble,install = T) 
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,rsample, purrr,psych,apaTables, tibble,install = T) 
 # Set-up an environment with text-required python packages
 ```
 
@@ -46,14 +46,14 @@ textrpp_initialize()
 ```
 
 ```{r}
-plot_aes = theme_minimal() +
-  theme(legend.position = "none",
-        text = element_text(family = "Futura Medium"),
+plot_aes_heat = theme_minimal() +
+ theme(legend.position = "none",
+        legend.text = element_text(size = 8),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
         axis.ticks.y = element_blank(),
-        plot.title = element_text(hjust = 0.5, vjust = 1.5),
-        plot.caption = element_text(hjust = 1, size = 10),
-        legend.text = element_text(size = 7, family = "Futura Medium")  # Adjust legend text here
-  )
+        plot.title = element_text(hjust = 0.5, size = 20))  # Center and increase title size)
+
 ```
 
 ```{r define functions}
@@ -131,10 +131,10 @@ text = read.csv(file.path(data_dir,"data_text/wellbeing-prediction-text-long.csv
 
 text_grouped <- text %>%
   group_by(pID, prompt) %>%
-  summarize(
-    text_combined = paste(text, collapse = " "),
-    .groups = "drop"  # To avoid keeping group structure
-  )
+  summarise(
+    text_combined = paste(text, collapse = " ")
+  ) %>%
+  ungroup()
 
 # Reshape data from long to wide format
 text_embed <- text_grouped %>%
@@ -229,19 +229,22 @@ alpha_results %>%
 ## Breakdown of Conditions 
 
 ```{r}
-text |> 
-  select(pID, type) |>
-  group_by(type) |>
-  summarize(n = n_distinct(pID)) |>
-  DT::datatable(extensions = 'FixedColumns', 
+text %>% 
+  select(pID, type) %>%
+  group_by(type) %>%
+  summarise(n = n_distinct(pID)) %>%
+  ungroup() %>%
+  datatable(extensions = 'FixedColumns', 
             filter = list(position = 'top', clear = FALSE),
-            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), 
+                           pageLength = 25))
   
 ```
 
+# Correlations
 
 ```{r}
-
+apa.cor.table(df[2:9],landscape = T, filename = file.path(data_dir,"Study2_correlation_matrix.doc"))
 ```
 
 
@@ -350,7 +353,7 @@ SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = c
   geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes
+  plot_aes_heat
 
 SWLS_heat
 ```
@@ -448,7 +451,7 @@ Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
   geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes
+  plot_aes_heat
 
 Autonomy_heat
 ```
@@ -456,11 +459,11 @@ Autonomy_heat
 ## All heatmaps (all data)
 
 ```{r all-heat}
-all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = F)
+all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = T)
 
 all_heat +
   ggtitle("Subscale Predictions") +
-  plot_aes  +  
+  plot_aes_heat  +  
   theme(
     plot.title = element_text(hjust = 0.5, vjust = 1.5)
   ) 
@@ -901,7 +904,7 @@ SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = c
   geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes
+  plot_aes_heat
 
 SWLS_heat
 ```
@@ -1000,20 +1003,20 @@ Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
   geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes
+  plot_aes_heat
 
-SWLS_heat
+Autonomy_heat
 ```
 
 
 ## All heatmaps (text only )
 
 ```{r all-heat-text-only}
-all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = T)
+all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = F)
 
 all_heat +
+  plot_aes_heat +
   ggtitle("Subscale Predictions (Text Only)") +
-  plot_aes  +  
   theme(
     plot.title = element_text(hjust = 0.5, vjust = 1.5)
   ) 
@@ -1447,7 +1450,7 @@ SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = c
   geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes
+  plot_aes_heat
 
 SWLS_heat
 ```
@@ -1546,7 +1549,7 @@ Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
   geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes
+  plot_aes_heat
 
 Autonomy_heat
 ```
@@ -1555,11 +1558,11 @@ Autonomy_heat
 ## All heatmaps (Audio only)
 
 ```{r all-heat-audio-only}
-all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = T)
+all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = F)
 
 all_heat +
   ggtitle("Subscale Predictions (Audio Only)") +
-  plot_aes  +  
+  plot_aes_heat  +  
   theme(
     plot.title = element_text(hjust = 0.5, vjust = 1.5)
   ) 
@@ -1785,7 +1788,7 @@ ggplot(audio_plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = conf
 
 ```
 
-## All Results (text)
+## All Results (audio)
 
 ```{r}
 audio_all_effects |> 

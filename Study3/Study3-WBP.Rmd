@@ -28,7 +28,7 @@ options(scipen=999)
 if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
 library(pacman)
 set.seed(123)
-pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,rsample, purrr,psych, tibble,install = T) 
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr, DT, stringr,ggwordcloud,Metrics,scales,rsample, purrr,psych,apaTables, tibble,install = T) 
 
 devtools::install_github("hadley/emo")
 ```
@@ -247,7 +247,15 @@ alpha_results %>%
 
 ```
 
- # Question 1
+# Correlation Matrix
+
+```{r}
+apa.cor.table(df[3:10],landscape = T,filename = file.path(data_dir,"Study3_correlation_matrix.doc"))
+```
+
+
+
+# Question 1
 
 > Can language‑based assessments of participants’ well-being predict components of self-reported well-being? 
 
