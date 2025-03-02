@@ -26,9 +26,6 @@ options(scipen=999)
 ```{r load packages and installize conda environment, include=FALSE}
 if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
 library(pacman)
-#setwd("~/Box Sync/CurrentProjects_Penn/LP2/within_person_intervention/data/models")
-
-
 
 pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr,DT,stringr,ggwordcloud,Metrics,apaTables,text,install = T) 
 # Set-up an environment with text-required python packages
@@ -169,7 +166,7 @@ process_results <- function(result_list) {
 
 ```{r load-data}
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
-df = read.csv(file.path(data_dir,"/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv"))
+df = read.csv(file.path(data_dir,"/data_prediction/surveys_scored/WBP_Study1_Cleaned.csv"))
 embeddings <- readRDS(file.path(data_dir,"/data_prediction/embeddings/study_1/all_embeddings.rds"))
 model_dir = "/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/"
 

@@ -115,9 +115,8 @@ table <- function(correlation_data) {
 ```{r load-data}
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
 
-df = read.csv(file.path(data_dir,"data/LP2_Wellbeing-Prediction_Behavioral.csv"))
+df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
 
-###turn to wide format 
 
 df = df %>% 
   select(pID, score, measure) %>% 
@@ -125,9 +124,7 @@ df = df %>%
 
 ###prep the text data 
 
-text = read.csv(file.path(data_dir,"data_text/wellbeing-prediction-text-long.csv"))
-
-
+text = read.csv(file.path(data_dir,"data_text/WBP_Study2_Text_cleaned.csv"))
 
 text_grouped <- text %>%
   group_by(pID, prompt) %>%
@@ -155,7 +152,7 @@ embeddings <- readRDS(file.path(data_dir,"embeddings/wellbeing-prediction-embedd
 
 ```{r}
 
-items = read.csv(file.path(data_dir,'data/SONA_wellbeing-prediction-items.csv'))
+items = read.csv(file.path(data_dir,'data/WBP_Study2_items.csv'))
 
 items = items %>% 
   select(-X,-pID,-Reflection_Type,-survey_name)
@@ -709,8 +706,7 @@ all_effects |>
 ```{r}
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
 
-df = read.csv(file.path(data_dir,"data/LP2_Wellbeing-Prediction_Behavioral.csv"))
-
+df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
 ###turn to wide format 
 
 df = df %>% 
@@ -719,12 +715,12 @@ df = df %>%
 
 ###prep the text data 
 
-text = read.csv(file.path(data_dir,"data_text/wellbeing-prediction-text-long.csv"))
+text = read.csv(file.path(data_dir,"data_text/WBP_Study2_Text_cleaned.csv"))
 
 ###prep the text data 
 
 text = text %>% 
-  select(pID,prompt,text,type) %>% 
+  select(pID,prompt,type) %>% 
   filter(type == "Text") %>% 
   select(-type)
 
@@ -1297,7 +1293,7 @@ table <- function(correlation_data) {
 ```{r}
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
 
-df = read.csv(file.path(data_dir,"data/LP2_Wellbeing-Prediction_Behavioral.csv"))
+df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
 
 ###turn to wide format 
 
@@ -1307,10 +1303,10 @@ df = df %>%
 
 ###prep the text data 
 
-text = read.csv(file.path(data_dir,"data_text/wellbeing-prediction-text-long.csv"))
+text = read.csv(file.path(data_dir,"data_text/WBP_Study2_Text_cleaned.csv"))
 
 text = text %>% 
-  select(pID,prompt,text,type) %>% 
+  select(pID,prompt,type) %>% 
   filter(type == "Audio") %>% 
   select(-type)
 

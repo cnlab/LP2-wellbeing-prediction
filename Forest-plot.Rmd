@@ -66,32 +66,39 @@ palette = c("#772e25", "#0a9396","#9b2226", "#ca6702", "#bb3e03" , "#ADA7C1","#6
 
 plot_aes = theme_minimal() +
   theme(legend.position = "bottom",
-        legend.text = element_text(size = 10),
-        text = element_text(size = 12, family = "Futura Medium"),
+        legend.text = element_text(size = 30),
+        text = element_text(size = 30, family = "Futura Medium"),
         axis.text = element_text(color = "black"),
         axis.ticks.y = element_blank(),
-        plot.title = element_text(hjust = 0.5, size = 20))  # Center and increase title size)
+        plot.title = element_text(hjust = 0.5, size = 36))  # Center and increase title size)
 
 ```
 
-```{r forest-plot, fig.height=7, fig.width=10}
+```{r forest-plot, fig.height=20, fig.width=20}
 
 
-plot_data = all_studies %>% 
-  select(prompt,outcome,r,p.value,conf.int_low,conf.int_high, dataset)
+plot_data <- all_studies %>% 
+  select(prompt, outcome, r, p.value, conf.int_low, conf.int_high, dataset) |> 
+  mutate(outcome = recode(outcome, 
+                          "acceptance" = "Acceptance (PWB)", 
+                          "autonomy" = "Autonomy (PWB)", 
+                          "growth" = "Growth (PWB)",  # Fixed closing parenthesis
+                          "purpose" = "Purpose (PWB)", 
+                          "relationships" = "Relationships (PWB)", 
+                          "mastery" = "Mastery (PWB)"))
 
 ggplot(plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = pmin(conf.int_high, 1), color = prompt, alpha = p.value < 0.05)) +
-  geom_pointrange(position = position_dodge(width = 0.6)) +
+  geom_pointrange(  size = 1.2, position = position_dodge(width = 0.6)) +
   scale_color_manual(values = palette) +
-  scale_alpha_manual(values = c(0.1, 1), guide = FALSE) +  # Set alpha values
-  labs(title = "Language-based Assessments\nPredicting Well-being",
+  scale_alpha_manual(values = c(0.4, 1), guide = FALSE) +  # Set alpha values
+  labs(title = "Language-based Assessments Predicting Well-being",
        x = "Pearson's Correlation (r)",
        y = "Psychological Outcome",
        color = "Prompt Type") +
   plot_aes + 
-  theme(axis.text.x = element_text(hjust = 1, size = 12)) +
+  theme(axis.text.x = element_text(hjust = 1, size = 30)) +
   scale_x_continuous(limits = c(-0.4, 1)) + 
-  facet_wrap(~dataset,) +   
+facet_wrap(~ dataset, nrow = 1) +
   geom_vline(xintercept = 0, linetype = "dashed")
 
 ```
