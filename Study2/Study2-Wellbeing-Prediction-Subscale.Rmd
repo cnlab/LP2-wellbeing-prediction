@@ -115,7 +115,7 @@ table <- function(correlation_data) {
 ```{r load-data}
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
 
-df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
+df = read.csv(file.path(data_dir,"data/osf/WBP_Study2_Behavioral_Cleaned.csv"))
 
 
 df = df %>% 
@@ -152,7 +152,7 @@ embeddings <- readRDS(file.path(data_dir,"embeddings/wellbeing-prediction-embedd
 
 ```{r}
 
-items = read.csv(file.path(data_dir,'data/WBP_Study2_items.csv'))
+items = read.csv(file.path(data_dir,'data/osf/WBP_Study2_items.csv'))
 
 items = items %>% 
   select(-X,-pID,-Reflection_Type,-survey_name)
@@ -706,7 +706,7 @@ all_effects |>
 ```{r}
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
 
-df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
+df = read.csv(file.path(data_dir,"data/osf/WBP_Study2_Behavioral_Cleaned.csv"))
 ###turn to wide format 
 
 df = df %>% 
@@ -1293,7 +1293,7 @@ table <- function(correlation_data) {
 ```{r}
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
 
-df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
+df = read.csv(file.path(data_dir,"data/osf/WBP_Study2_Behavioral_Cleaned.csv"))
 
 ###turn to wide format 
 

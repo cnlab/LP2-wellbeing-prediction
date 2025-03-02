@@ -162,7 +162,7 @@ process_results <- function(result_list) {
 
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/"
 
-df = read.csv(file.path(data_dir,"data/WBP_Study3_Behavioral_Cleaned.csv"))
+df = read.csv(file.path(data_dir,"data/osf/WBP_Study3_Behavioral_Cleaned.csv"))
 
 df = df %>% 
   rename_with(~ gsub("\\.", " ", .))
@@ -172,7 +172,7 @@ embeddings <- readRDS(file.path(data_dir,"embeddings/Study3-WBP-embeddings.rds")
 # Inter-item Correlations
 
 ```{r}
-items = read.csv(file.path(data_dir,"data/WBP_Study3_Behavioral_Cleaned_items.csv"))
+items = read.csv(file.path(data_dir,"data/osf/WBP_Study3_Behavioral_Cleaned_items.csv"))
 
 items = items %>% 
   select(-X,pID)
