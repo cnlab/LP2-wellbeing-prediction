@@ -11,3 +11,4 @@ data/
 *.csv
 /subscale-models-post
 *.knit.md
+/misc
