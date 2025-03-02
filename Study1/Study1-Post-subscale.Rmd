@@ -173,8 +173,8 @@ process_results <- function(result_list) {
 # load data
 
 ```{r load-data}
-data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
-df = read.csv(file.path(data_dir,"/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv"))
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/"
+df = read.csv(file.path(data_dir,"well-being-prediction/data/osf/WBP_Study1_Cleaned.csv"))
 df <- df %>%
 filter(rowSums(is.na(select(., starts_with("post")))) == 0)
 embeddings <- read_rds("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/embeddings/Study1_post__embeddings.rds")

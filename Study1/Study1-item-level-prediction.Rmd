@@ -96,10 +96,9 @@ table <- function(correlation_data) {
 # load data
 
 ```{r load-data}
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/"
 
-
-data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
-data <- read_csv(file.path(data_dir,"/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv"))
+data = read.csv(file.path(data_dir,"well-being-prediction/data/osf/WBP_Study1_Cleaned.csv"))
 
 df <- data %>%
 select(1, starts_with("pre")) %>% 
@@ -214,6 +213,8 @@ alpha_results %>%
 ```{r}
 affect <- df %>%
   select(starts_with("pre_SWLS"))
+
+data_dir = "/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
 
 rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/affect_item_output.RDS") #update with the path to each model
 
