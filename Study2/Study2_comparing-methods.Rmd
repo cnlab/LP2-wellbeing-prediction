@@ -1,0 +1,584 @@
+---
+title: "Comparing Methods"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "item_level/item_")
+options(scipen=999)
+```
+
+
+
+```{r load packages and installize conda environment, include=FALSE}
+if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
+library(pacman)
+
+#setwd("~/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/item_level_analyses")
+
+pacman::p_load(forecast, DT, multilevel,tidyverse, stringi,install = T)
+
+# Set-up an environment with text-required python packages
+```
+
+```{r define functions}
+calculate_errors <- function(column_name, model_names, actual_values, predicted_values) {
+  errors_list <- list()
+  
+  for (col_name in model_names) {
+    if (grepl(column_name, col_name)) {
+      errors <- (actual_values[[column_name]] - predicted_values[[col_name]])^2  # Square the errors
+      errors_list[[col_name]] <- errors
+    }
+  }
+  
+  return(errors_list)
+}
+
+```
+
+# Satisfaction with Life Comparisons 
+
+```{r load SWLS text only Data}
+df <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Behavioral_Cleaned.csv")
+
+###turn to wide format 
+
+df = df %>% 
+  dplyr::select(pID, score, measure) %>% 
+  spread(key = measure, value = score)
+
+###prep the text data 
+text <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Text_cleaned.csv")
+
+#make pseudo text column since we cant share the raw text
+
+text = text |> 
+  mutate(text = stri_rand_strings(n = n(), length = 500, pattern = "[A-Za-z0-9 ]"))
+
+text = text %>% 
+  dplyr::select(pID,prompt,text,type) %>% 
+  filter(type == "Text") %>% 
+  dplyr::select(-type)
+
+text_grouped <- text %>%
+  group_by(pID, prompt) %>%
+  summarize(
+    text_combined = paste(text, collapse = " "),
+    .groups = "drop"  # To avoid keeping group structure
+  )
+
+# Reshape data from long to wide format
+text_embed_text_only <- text_grouped %>%
+  spread(key = prompt, value = text_combined)
+
+text_embed_pids <- unique(text_embed_text_only$pID)
+
+# Filter df to include only rows with pID in text_embed_pids
+df <- df %>%
+  filter(pID %in% text_embed_pids)
+
+
+SWLS_subscale_Text <- readRDS("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/supp/embeddings/Text_Only_SWLS_subscale.RDS")
+
+```
+
+
+```{r Compute SWLS Text Only errors and process}
+filtered_predictions <- na.omit(SWLS_subscale_Text$predictions[1:8])
+SWLS_subscale_predictions <- as.data.frame(filtered_predictions)
+models <- c(colnames(SWLS_subscale_Text$predictions[1:8]))
+
+
+data = df %>% 
+  dplyr::select(-pID) 
+
+results <- list()
+column_names <- colnames(data)
+all_errors <- list()
+
+
+for (column_name in column_names) {
+  errors <- calculate_errors(
+    column_name = column_name,
+    model_names = models,
+    actual_values = data,
+    predicted_values = SWLS_subscale_predictions
+  )
+  
+  # Store errors in all_errors list
+  all_errors[[column_name]] <- errors
+}
+
+
+SWLS_Text_PWB_autonomy_df <- as.data.frame(all_errors$`PWB autonomy`$`embeddings$texts$SWLS_PWB autonomy_pred`)
+SWLS_Text_PWB_environmental_mastery_df <- as.data.frame(all_errors$`PWB environmental_mastery`$`embeddings$texts$SWLS_PWB environmental_mastery_pred`)
+SWLS_Text_PWB_mean_df <- as.data.frame(all_errors$`PWB mean`$`embeddings$texts$SWLS_PWB mean_pred`)
+SWLS_Text_PWB_personal_growth_df <- as.data.frame(all_errors$`PWB personal_growth`$`embeddings$texts$SWLS_PWB personal_growth_pred`)
+SWLS_Text_PWB_positive_relations_df <- as.data.frame(all_errors$`PWB positive_relations`$`embeddings$texts$SWLS_PWB positive_relations_pred`)
+SWLS_Text_PWB_purpose_df <- as.data.frame(all_errors$`PWB purpose`$`embeddings$texts$SWLS_PWB purpose_pred`)
+SWLS_Text_PWB_self_acceptance_df <- as.data.frame(all_errors$`PWB self_acceptance`$`embeddings$texts$SWLS_PWB self_acceptance`)
+SWLS_Text_SWLS_mean_df<- as.data.frame(all_errors$`SWLS mean`$`embeddings$texts$SWLS_SWLS mean_pred`)
+
+```
+
+```{r Load SWLS Audio Data}
+
+###prep the text data 
+df <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Behavioral_Cleaned.csv")
+
+###turn to wide format 
+
+df = df %>% 
+  dplyr::select(pID, score, measure) %>% 
+  spread(key = measure, value = score)
+
+###prep the text data 
+text <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Text_cleaned.csv")
+
+text = text |> 
+  mutate(text = stri_rand_strings(n = n(), length = 500, pattern = "[A-Za-z0-9 ]"))
+
+text = text %>% 
+  dplyr::select(pID,prompt,text,type) %>% 
+  filter(type == "Audio") %>% 
+  dplyr::select(-type)
+
+text_grouped <- text %>%
+  group_by(pID, prompt) %>%
+  summarize(
+    text_combined = paste(text, collapse = " "),
+    .groups = "drop"  # To avoid keeping group structure
+  )
+
+# Reshape data from long to wide format
+text_embed_audio_only <- text_grouped %>%
+  spread(key = prompt, value = text_combined)
+
+text_embed_pids <- unique(text_embed_audio_only$pID)
+
+# Filter df to include only rows with pID in text_embed_pids
+df <- df %>%
+  filter(pID %in% text_embed_pids)
+
+
+
+
+SWLS_subscale_Audio <- readRDS("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/supp/embeddings/Audio_Only_SWLS_subscale.RDS")
+
+```
+
+```{r compute SWLS audio erros }
+filtered_predictions <- na.omit(SWLS_subscale_Audio$predictions[1:8])
+SWLS_subscale_predictions <- as.data.frame(filtered_predictions)
+models <- c(colnames(SWLS_subscale_Audio$predictions[1:8]))
+
+
+data = df %>% 
+  dplyr::select(-pID) 
+
+results <- list()
+column_names <- colnames(data)
+all_errors <- list()
+
+
+for (column_name in column_names) {
+  errors <- calculate_errors(
+    column_name = column_name,
+    model_names = models,
+    actual_values = data,
+    predicted_values = SWLS_subscale_predictions
+  )
+  
+  # Store errors in all_errors list
+  all_errors[[column_name]] <- errors
+}
+
+
+SWLS_Audio_PWB_autonomy_df <- as.data.frame(all_errors$`PWB autonomy`$`embeddings$texts$SWLS_PWB autonomy_pred`)
+SWLS_Audio_PWB_environmental_mastery_df <- as.data.frame(all_errors$`PWB environmental_mastery`$`embeddings$texts$SWLS_PWB environmental_mastery_pred`)
+SWLS_Audio_PWB_mean_df <- as.data.frame(all_errors$`PWB mean`$`embeddings$texts$SWLS_PWB mean_pred`)
+SWLS_Audio_PWB_personal_growth_df <- as.data.frame(all_errors$`PWB personal_growth`$`embeddings$texts$SWLS_PWB personal_growth_pred`)
+SWLS_Audio_PWB_positive_relations_df <- as.data.frame(all_errors$`PWB positive_relations`$`embeddings$texts$SWLS_PWB positive_relations_pred`)
+SWLS_Audio_PWB_purpose_df <- as.data.frame(all_errors$`PWB purpose`$`embeddings$texts$SWLS_PWB purpose_pred`)
+SWLS_Audio_PWB_self_acceptance_df <- as.data.frame(all_errors$`PWB self_acceptance`$`embeddings$texts$SWLS_PWB self_acceptance`)
+SWLS_Audio_SWLS_mean_df<- as.data.frame(all_errors$`SWLS mean`$`embeddings$texts$SWLS_SWLS mean_pred`)
+```
+
+## Comparing squared errors for SWLS
+
+```{r}
+# Run the t-tests and calculate means
+# Perform the t-tests and calculate the means
+text_errors_SWLS = SWLS_Text_SWLS_mean_df$`all_errors$\`SWLS mean\`$\`embeddings$texts$SWLS_SWLS mean_pred\``
+audio_errors_SWLS = SWLS_Audio_SWLS_mean_df$`all_errors$\`SWLS mean\`$\`embeddings$texts$SWLS_SWLS mean_pred\``
+
+SWLS_SWLS = t.test(text_errors_SWLS, audio_errors_SWLS, var.equal = TRUE)
+mean_text_SWLS = mean(text_errors_SWLS)
+mean_audio_SWLS = mean(audio_errors_SWLS)
+
+text_errors_autonomy = SWLS_Text_PWB_autonomy_df$`all_errors$\`PWB autonomy\`$\`embeddings$texts$SWLS_PWB autonomy_pred\``
+audio_errors_autonomy = SWLS_Audio_PWB_autonomy_df$`all_errors$\`PWB autonomy\`$\`embeddings$texts$SWLS_PWB autonomy_pred\``
+
+SWLS_autonomy = t.test(text_errors_autonomy, audio_errors_autonomy, var.equal = TRUE)
+mean_text_autonomy = mean(text_errors_autonomy)
+mean_audio_autonomy = mean(audio_errors_autonomy)
+
+text_errors_PWB = SWLS_Text_PWB_mean_df$`all_errors$\`PWB mean\`$\`embeddings$texts$SWLS_PWB mean_pred\``
+audio_errors_PWB = SWLS_Audio_PWB_mean_df$`all_errors$\`PWB mean\`$\`embeddings$texts$SWLS_PWB mean_pred\``
+
+SWLS_PWB = t.test(text_errors_PWB, audio_errors_PWB, var.equal = TRUE)
+mean_text_PWB = mean(text_errors_PWB)
+mean_audio_PWB = mean(audio_errors_PWB)
+
+text_errors_pos_relations = SWLS_Text_PWB_positive_relations_df$`all_errors$\`PWB positive_relations\`$\`embeddings$texts$SWLS_PWB positive_relations_pred\``
+audio_errors_pos_relations = SWLS_Audio_PWB_positive_relations_df$`all_errors$\`PWB positive_relations\`$\`embeddings$texts$SWLS_PWB positive_relations_pred\``
+
+SWLS_pos_relations = t.test(text_errors_pos_relations, audio_errors_pos_relations, var.equal = TRUE)
+mean_text_pos_relations = mean(text_errors_pos_relations)
+mean_audio_pos_relations = mean(audio_errors_pos_relations)
+
+text_errors_env_master = SWLS_Text_PWB_environmental_mastery_df$`all_errors$\`PWB environmental_mastery\`$\`embeddings$texts$SWLS_PWB environmental_mastery_pred\``
+audio_errors_env_master = SWLS_Audio_PWB_environmental_mastery_df$`all_errors$\`PWB environmental_mastery\`$\`embeddings$texts$SWLS_PWB environmental_mastery_pred\``
+
+SWLS_env_master = t.test(text_errors_env_master, audio_errors_env_master, var.equal = TRUE)
+mean_text_env_master = mean(text_errors_env_master)
+mean_audio_env_master = mean(audio_errors_env_master)
+
+text_errors_personal = SWLS_Text_PWB_personal_growth_df$`all_errors$\`PWB personal_growth\`$\`embeddings$texts$SWLS_PWB personal_growth_pred\``
+audio_errors_personal = SWLS_Audio_PWB_personal_growth_df$`all_errors$\`PWB personal_growth\`$\`embeddings$texts$SWLS_PWB personal_growth_pred\``
+
+SWLS_personal = t.test(text_errors_personal, audio_errors_personal, var.equal = TRUE)
+mean_text_personal = mean(text_errors_personal)
+mean_audio_personal = mean(audio_errors_personal)
+
+text_errors_purpose = SWLS_Text_PWB_purpose_df$`all_errors$\`PWB purpose\`$\`embeddings$texts$SWLS_PWB purpose_pred\``
+audio_errors_purpose = SWLS_Audio_PWB_purpose_df$`all_errors$\`PWB purpose\`$\`embeddings$texts$SWLS_PWB purpose_pred\``
+
+SWLS_purpose = t.test(text_errors_purpose, audio_errors_purpose, var.equal = TRUE)
+mean_text_purpose = mean(text_errors_purpose)
+mean_audio_purpose = mean(audio_errors_purpose)
+
+text_errors_accept = SWLS_Text_PWB_self_acceptance_df$`all_errors$\`PWB self_acceptance\`$\`embeddings$texts$SWLS_PWB self_acceptance\``
+audio_errors_accept = SWLS_Audio_PWB_self_acceptance_df$`all_errors$\`PWB self_acceptance\`$\`embeddings$texts$SWLS_PWB self_acceptance\``
+
+SWLS_accept = t.test(text_errors_accept, audio_errors_accept, var.equal = TRUE)
+mean_text_accept = mean(text_errors_accept)
+mean_audio_accept = mean(audio_errors_accept)
+
+# Collect all p-values
+p_values = c(SWLS_SWLS$p.value, SWLS_autonomy$p.value, SWLS_PWB$p.value, SWLS_pos_relations$p.value, SWLS_env_master$p.value, SWLS_personal$p.value, SWLS_purpose$p.value, SWLS_accept$p.value)
+
+# Apply FDR correction
+p_adjusted = p.adjust(p_values, method = "fdr")
+
+# Create a data frame with the results
+results_df <- data.frame(
+  Measure = c("SWLS", "Autonomy", "PWB", "Positive Relations", "Environmental Mastery", "Personal Growth", "Purpose", "Self-Acceptance"),
+  t_statistic = c(SWLS_SWLS$statistic, SWLS_autonomy$statistic, SWLS_PWB$statistic, SWLS_pos_relations$statistic, SWLS_env_master$statistic, SWLS_personal$statistic, SWLS_purpose$statistic, SWLS_accept$statistic),
+  p_value = c(SWLS_SWLS$p.value, SWLS_autonomy$p.value, SWLS_PWB$p.value, SWLS_pos_relations$p.value, SWLS_env_master$p.value, SWLS_personal$p.value, SWLS_purpose$p.value, SWLS_accept$p.value),
+  p_adjusted = p_adjusted,
+  conf_int_lower = c(SWLS_SWLS$conf.int[1], SWLS_autonomy$conf.int[1], SWLS_PWB$conf.int[1], SWLS_pos_relations$conf.int[1], SWLS_env_master$conf.int[1], SWLS_personal$conf.int[1], SWLS_purpose$conf.int[1], SWLS_accept$conf.int[1]),
+  conf_int_upper = c(SWLS_SWLS$conf.int[2], SWLS_autonomy$conf.int[2], SWLS_PWB$conf.int[2], SWLS_pos_relations$conf.int[2], SWLS_env_master$conf.int[2], SWLS_personal$conf.int[2], SWLS_purpose$conf.int[2], SWLS_accept$conf.int[2]),
+  df = c(SWLS_SWLS$parameter, SWLS_autonomy$parameter, SWLS_PWB$parameter, SWLS_pos_relations$parameter, SWLS_env_master$parameter, SWLS_personal$parameter, SWLS_purpose$parameter, SWLS_accept$parameter),
+  mean_text = c(mean_text_SWLS, mean_text_autonomy, mean_text_PWB, mean_text_pos_relations, mean_text_env_master, mean_text_personal, mean_text_purpose, mean_text_accept),
+  mean_audio = c(mean_audio_SWLS, mean_audio_autonomy, mean_audio_PWB, mean_audio_pos_relations, mean_audio_env_master, mean_audio_personal, mean_audio_purpose, mean_audio_accept)
+)
+
+# Round the necessary columns
+SWLS_model_errors <- results_df %>% 
+  dplyr::select(Measure, mean_text, mean_audio, df, t_statistic, p_value, p_adjusted) %>% 
+  mutate(mean_text = round(as.numeric(mean_text), 2),
+         mean_audio = round(as.numeric(mean_audio), 2),
+         df = round(as.numeric(df), 2),
+         t_statistic = round(as.numeric(t_statistic), 2),
+         p_value = round(as.numeric(p_value), 3),
+         p_adjusted = round(as.numeric(p_adjusted), 3))
+
+# Display the data frame
+datatable(SWLS_model_errors, extensions = 'FixedColumns', 
+          filter = list(position = 'top', clear = FALSE),
+          options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+
+write.csv(SWLS_model_errors,"SWLS_model_errors.csv")
+
+
+```
+
+# Autonomy Comparisons
+
+## Comparing squared-errors
+
+```{r load autonomy text only data}
+df <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Behavioral_Cleaned.csv")
+
+###turn to wide format 
+
+df = df %>% 
+  dplyr::select(pID, score, measure) %>% 
+  spread(key = measure, value = score)
+
+###prep the text data 
+text <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Text_cleaned.csv")
+text = text |> 
+  mutate(text = stri_rand_strings(n = n(), length = 500, pattern = "[A-Za-z0-9 ]"))
+
+###prep the text data 
+
+text = text %>% 
+  dplyr::select(pID,prompt,text,type) %>% 
+  filter(type == "Text") %>% 
+  dplyr::select(-type)
+
+text_grouped <- text %>%
+  group_by(pID, prompt) %>%
+  summarize(
+    text_combined = paste(text, collapse = " "),
+    .groups = "drop"  # To avoid keeping group structure
+  )
+
+# Reshape data from long to wide format
+text_embed_text_only <- text_grouped %>%
+  spread(key = prompt, value = text_combined)
+
+
+
+text_embed_pids <- unique(text_embed_text_only$pID)
+
+# Filter df to include only rows with pID in text_embed_pids
+df <- df %>%
+  filter(pID %in% text_embed_pids)
+
+Autonomy_subscale_Text = readRDS("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention/data_prediction/models/Well-being-prediction/prelim-analyses/Text_Only_autonomy_subscale.RDS")
+
+```
+
+```{r}
+data = df %>% 
+  dplyr::select(-pID) 
+
+results <- list()
+column_names <- colnames(data)
+all_errors <- list()
+
+
+
+filtered_predictions <- na.omit(Autonomy_subscale_Text$predictions[1:8])
+Autonomy_subscale_predictions <- as.data.frame(filtered_predictions)
+models <- c(colnames(Autonomy_subscale_Text$predictions[1:8]))
+
+data = data
+
+
+for (column_name in column_names) {
+  errors <- calculate_errors(
+    column_name = column_name,
+    model_names = models,
+    actual_values = data,
+    predicted_values = Autonomy_subscale_predictions
+  )
+  
+  # Store errors in all_errors list
+  all_errors[[column_name]] <- errors
+}
+
+
+Autonomy_Text_PWB_autonomy_df <- as.data.frame(all_errors$`PWB autonomy`$`embeddings$texts$Autonomy_PWB autonomy_pred`)
+Autonomy_Text_PWB_environmental_mastery_df <- as.data.frame(all_errors$`PWB environmental_mastery`$`embeddings$texts$Autonomy_PWB environmental_mastery_pred`)
+Autonomy_Text_PWB_mean_df <- as.data.frame(all_errors$`PWB mean`$`embeddings$texts$Autonomy_PWB mean_pred`)
+Autonomy_Text_PWB_personal_growth_df <- as.data.frame(all_errors$`PWB personal_growth`$`embeddings$texts$Autonomy_PWB personal_growth_pred`)
+Autonomy_Text_PWB_positive_relations_df <- as.data.frame(all_errors$`PWB positive_relations`$`embeddings$texts$Autonomy_PWB positive_relations_pred`)
+Autonomy_Text_PWB_purpose_df <- as.data.frame(all_errors$`PWB purpose`$`embeddings$texts$Autonomy_PWB purpose_pred`)
+Autonomy_Text_PWB_self_acceptance_df <- as.data.frame(all_errors$`PWB self_acceptance`$`embeddings$texts$Autonomy_PWB self_acceptance`)
+Autonomy_Text_SWLS_mean_df<- as.data.frame(all_errors$`SWLS mean`$`embeddings$texts$Autonomy_SWLS mean_pred`)
+```
+
+```{r load-in-autonomy-audio}
+df <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Behavioral_Cleaned.csv")
+
+###turn to wide format 
+
+df = df %>% 
+  dplyr::select(pID, score, measure) %>% 
+  spread(key = measure, value = score)
+
+###prep the text data 
+text <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Text_cleaned.csv")
+text = text |> 
+  mutate(text = stri_rand_strings(n = n(), length = 500, pattern = "[A-Za-z0-9 ]"))
+
+text = text %>% 
+  dplyr::select(pID,prompt,text,type) %>% 
+  filter(type == "Audio") %>% 
+  dplyr::select(-type)
+
+text_grouped <- text %>%
+  group_by(pID, prompt) %>%
+  summarize(
+    text_combined = paste(text, collapse = " "),
+    .groups = "drop"  # To avoid keeping group structure
+  )
+
+# Reshape data from long to wide format
+text_embed_audio_only <- text_grouped %>%
+  spread(key = prompt, value = text_combined)
+
+text_embed_pids <- unique(text_embed_audio_only$pID)
+
+# Filter df to include only rows with pID in text_embed_pids
+df <- df %>%
+  filter(pID %in% text_embed_pids)
+
+ Autonomy_Audio <- readRDS("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention/data_prediction/models/Well-being-prediction/prelim-analyses/Audio_Only_autonomy_subscale.RDS")
+
+```
+
+
+```{r}
+data = df %>% 
+  dplyr::select(-pID) 
+
+results <- list()
+column_names <- colnames(data)
+all_errors <- list()
+
+
+
+filtered_predictions <- na.omit(Autonomy_Audio$predictions[1:8])
+Autonomy_subscale_predictions <- as.data.frame(filtered_predictions)
+models <- c(colnames(Autonomy_Audio$predictions[1:8]))
+
+data = data
+
+
+for (column_name in column_names) {
+  errors <- calculate_errors(
+    column_name = column_name,
+    model_names = models,
+    actual_values = data,
+    predicted_values = Autonomy_subscale_predictions
+  )
+  
+  # Store errors in all_errors list
+  all_errors[[column_name]] <- errors
+}
+
+
+Autonomy_Audio_PWB_autonomy_df <- as.data.frame(all_errors$`PWB autonomy`$`embeddings$texts$Autonomy_PWB autonomy_pred`)
+Autonomy_Audio_PWB_environmental_mastery_df <- as.data.frame(all_errors$`PWB environmental_mastery`$`embeddings$texts$Autonomy_PWB environmental_mastery_pred`)
+Autonomy_Audio_PWB_mean_df <- as.data.frame(all_errors$`PWB mean`$`embeddings$texts$Autonomy_PWB mean_pred`)
+Autonomy_Audio_PWB_personal_growth_df <- as.data.frame(all_errors$`PWB personal_growth`$`embeddings$texts$Autonomy_PWB personal_growth_pred`)
+Autonomy_Audio_PWB_positive_relations_df <- as.data.frame(all_errors$`PWB positive_relations`$`embeddings$texts$Autonomy_PWB positive_relations_pred`)
+Autonomy_Audio_PWB_purpose_df <- as.data.frame(all_errors$`PWB purpose`$`embeddings$texts$Autonomy_PWB purpose_pred`)
+Autonomy_Audio_PWB_self_acceptance_df <- as.data.frame(all_errors$`PWB self_acceptance`$`embeddings$texts$Autonomy_PWB self_acceptance`)
+Autonomy_Audio_SWLS_mean_df<- as.data.frame(all_errors$`SWLS mean`$`embeddings$texts$Autonomy_SWLS mean_pred`)
+```
+
+```{r}
+library(dplyr)
+library(DT)
+
+# Perform the t-tests and calculate the means
+text_errors_SWLS = Autonomy_Text_SWLS_mean_df$`all_errors$\`SWLS mean\`$\`embeddings$texts$Autonomy_SWLS mean_pred\``
+audio_errors_SWLS = Autonomy_Audio_SWLS_mean_df$`all_errors$\`SWLS mean\`$\`embeddings$texts$Autonomy_SWLS mean_pred\``
+
+SWLS_SWLS = t.test(text_errors_SWLS, audio_errors_SWLS, var.equal = T)
+mean_text_SWLS = mean(text_errors_SWLS)
+mean_audio_SWLS = mean(audio_errors_SWLS)
+
+text_errors_autonomy = Autonomy_Text_PWB_autonomy_df$`all_errors$\`PWB autonomy\`$\`embeddings$texts$Autonomy_PWB autonomy_pred\``
+audio_errors_autonomy = Autonomy_Audio_PWB_autonomy_df$`all_errors$\`PWB autonomy\`$\`embeddings$texts$Autonomy_PWB autonomy_pred\``
+
+SWLS_autonomy = t.test(text_errors_autonomy, audio_errors_autonomy, var.equal = T)
+mean_text_autonomy = mean(text_errors_autonomy)
+mean_audio_autonomy = mean(audio_errors_autonomy)
+
+text_errors_PWB = Autonomy_Text_PWB_mean_df$`all_errors$\`PWB mean\`$\`embeddings$texts$Autonomy_PWB mean_pred\``
+audio_errors_PWB = Autonomy_Audio_PWB_mean_df$`all_errors$\`PWB mean\`$\`embeddings$texts$Autonomy_PWB mean_pred\``
+
+SWLS_PWB = t.test(text_errors_PWB, audio_errors_PWB, var.equal = T)
+mean_text_PWB = mean(text_errors_PWB)
+mean_audio_PWB = mean(audio_errors_PWB)
+
+text_errors_pos_relations = Autonomy_Text_PWB_positive_relations_df$`all_errors$\`PWB positive_relations\`$\`embeddings$texts$Autonomy_PWB positive_relations_pred\``
+audio_errors_pos_relations = Autonomy_Audio_PWB_positive_relations_df$`all_errors$\`PWB positive_relations\`$\`embeddings$texts$Autonomy_PWB positive_relations_pred\``
+
+SWLS_pos_relations = t.test(text_errors_pos_relations, audio_errors_pos_relations, var.equal = T)
+mean_text_pos_relations = mean(text_errors_pos_relations)
+mean_audio_pos_relations = mean(audio_errors_pos_relations)
+
+text_errors_env_master = Autonomy_Text_PWB_environmental_mastery_df$`all_errors$\`PWB environmental_mastery\`$\`embeddings$texts$Autonomy_PWB environmental_mastery_pred\``
+audio_errors_env_master = Autonomy_Audio_PWB_environmental_mastery_df$`all_errors$\`PWB environmental_mastery\`$\`embeddings$texts$Autonomy_PWB environmental_mastery_pred\``
+
+SWLS_env_master = t.test(text_errors_env_master, audio_errors_env_master, var.equal = T)
+mean_text_env_master = mean(text_errors_env_master)
+mean_audio_env_master = mean(audio_errors_env_master)
+
+text_errors_personal = Autonomy_Text_PWB_personal_growth_df$`all_errors$\`PWB personal_growth\`$\`embeddings$texts$Autonomy_PWB personal_growth_pred\``
+audio_errors_personal = Autonomy_Audio_PWB_personal_growth_df$`all_errors$\`PWB personal_growth\`$\`embeddings$texts$Autonomy_PWB personal_growth_pred\``
+
+SWLS_personal = t.test(text_errors_personal, audio_errors_personal, var.equal = T)
+mean_text_personal = mean(text_errors_personal)
+mean_audio_personal = mean(audio_errors_personal)
+
+text_errors_purpose = Autonomy_Text_PWB_purpose_df$`all_errors$\`PWB purpose\`$\`embeddings$texts$Autonomy_PWB purpose_pred\``
+audio_errors_purpose = Autonomy_Audio_PWB_purpose_df$`all_errors$\`PWB purpose\`$\`embeddings$texts$Autonomy_PWB purpose_pred\``
+
+SWLS_purpose = t.test(text_errors_purpose, audio_errors_purpose, var.equal = T)
+mean_text_purpose = mean(text_errors_purpose)
+mean_audio_purpose = mean(audio_errors_purpose)
+
+text_errors_accept = Autonomy_Text_PWB_self_acceptance_df$`all_errors$\`PWB self_acceptance\`$\`embeddings$texts$Autonomy_PWB self_acceptance\``
+audio_errors_accept = Autonomy_Audio_PWB_self_acceptance_df$`all_errors$\`PWB self_acceptance\`$\`embeddings$texts$Autonomy_PWB self_acceptance\``
+
+SWLS_accept = t.test(text_errors_accept, audio_errors_accept, var.equal = T)
+mean_text_accept = mean(text_errors_accept)
+mean_audio_accept = mean(audio_errors_accept)
+
+# Create a data frame with the results
+results_df <- data.frame(
+  Measure = c("SWLS", "Autonomy", "PWB", "Positive Relations", "Environmental Mastery", "Personal Growth", "Purpose", "Self-Acceptance"),
+  t_statistic = c(SWLS_SWLS$statistic, SWLS_autonomy$statistic, SWLS_PWB$statistic, SWLS_pos_relations$statistic, SWLS_env_master$statistic, SWLS_personal$statistic, SWLS_purpose$statistic, SWLS_accept$statistic),
+  p_value = c(SWLS_SWLS$p.value, SWLS_autonomy$p.value, SWLS_PWB$p.value, SWLS_pos_relations$p.value, SWLS_env_master$p.value, SWLS_personal$p.value, SWLS_purpose$p.value, SWLS_accept$p.value),
+  conf_int_lower = c(SWLS_SWLS$conf.int[1], SWLS_autonomy$conf.int[1], SWLS_PWB$conf.int[1], SWLS_pos_relations$conf.int[1], SWLS_env_master$conf.int[1], SWLS_personal$conf.int[1], SWLS_purpose$conf.int[1], SWLS_accept$conf.int[1]),
+  conf_int_upper = c(SWLS_SWLS$conf.int[2], SWLS_autonomy$conf.int[2], SWLS_PWB$conf.int[2], SWLS_pos_relations$conf.int[2], SWLS_env_master$conf.int[2], SWLS_personal$conf.int[2], SWLS_purpose$conf.int[2], SWLS_accept$conf.int[2]),
+  df = c(SWLS_SWLS$parameter, SWLS_autonomy$parameter, SWLS_PWB$parameter, SWLS_pos_relations$parameter, SWLS_env_master$parameter, SWLS_personal$parameter, SWLS_purpose$parameter, SWLS_accept$parameter),
+  mean_text = c(mean_text_SWLS, mean_text_autonomy, mean_text_PWB, mean_text_pos_relations, mean_text_env_master, mean_text_personal, mean_text_purpose, mean_text_accept),
+  mean_audio = c(mean_audio_SWLS, mean_audio_autonomy, mean_audio_PWB, mean_audio_pos_relations, mean_audio_env_master, mean_audio_personal, mean_audio_purpose, mean_audio_accept)
+)
+
+# Adjust p-values using FDR correction
+results_df <- results_df %>%
+  mutate(p_adjusted = p.adjust(p_value, method = "fdr"))
+
+Autonomy_model_errors = results_df %>% 
+  dplyr::select(1,7,8,6,2,3,9) %>% 
+  mutate(mean_text = round(as.numeric(mean_text),2),
+         mean_audio = round(as.numeric(mean_audio),2),
+         df = round(as.numeric(df),2),
+         t_statistic = round(as.numeric(t_statistic),2),
+         p_value = round(as.numeric(p_value),3),
+         p_adjusted = round(as.numeric(p_adjusted),3))
+
+datatable(Autonomy_model_errors, extensions = 'FixedColumns', 
+            filter = list(position = 'top', clear = FALSE),
+            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+
+write.csv(Autonomy_model_errors,"Autonomy_model_errors.csv")
+
+```
+
