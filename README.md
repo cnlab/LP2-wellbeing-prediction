@@ -12,4 +12,4 @@ To reproduce the analyses in the manuscript, execute the the analysis scripts in
 * `Study1` = R code for the analyses reported in Study1
 * `Study2` = R code for the analyses reported in Study2
 * `Study2` = R code for the analyses reported in Study2
-* `data` = text files containing the data for all studies
+* `data` = csv files containing the data for all studies

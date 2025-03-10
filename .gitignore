@@ -7,7 +7,6 @@
 *.RDS
 *.Rapp.history
 *.RData
-*.csv
 /subscale-models-post
 *.knit.md
 /misc
