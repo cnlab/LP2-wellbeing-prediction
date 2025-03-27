@@ -40,7 +40,9 @@ To run all studies:
 ### Troubleshooting
 
 -   Command not found? Ensure you have make installed (sudo apt install make on Linux, or use Xcode Command Line Tools on macOS).
--   Errors in R Markdown rendering? Check the error messages in the console and ensure all required R packages are installed.
+-   Makefile not found? Ensure you are in the correct directory.
+-   Errors in R code? Check the error messages in the console and ensure all required R packages are installed.
+-   Error: pandoc version 1.12.3 or higher is required and was not? Install pandoc with `brew install pandoc` in your terminal. 
 
 ## Directory structure
 
