@@ -35,6 +35,6 @@ Study2-bootstrapping:
 Study3: Study3-main
 
 Study3-main: 
-	Rscript -e "rmarkdown::render('Study3/Study3-WBP.Rmd')"
+	Rscript -e "rmarkdown::render('Study3/Study3-WBP.Rmd')
 	
 
