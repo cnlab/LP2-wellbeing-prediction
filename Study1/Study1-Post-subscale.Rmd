@@ -179,7 +179,7 @@ df = read.csv(file.path(data_dir,"data/WBP_Study1_Cleaned.csv"))
 df <- df %>%
   filter(rowSums(is.na(across(starts_with("post")))) == 0)
 embeddings <- readRDS(file.path(data_dir,"supp/embeddings/Study1_post__embeddings.rds"))
-model_dir = "supp/Study1/post/subscale-models-post"
+model_dir = "~/Desktop/LP2-wellbeing-prediction/supp/Study1/subscale-models-post/"
 ```
 
 # Subscale Predicition {.tabset}
@@ -190,7 +190,7 @@ model_dir = "supp/Study1/post/subscale-models-post"
 
 rds_file_path <- file.path(model_dir, "/autonomy/autonomy_subscale_df.RDS") #update with the path to each model
 autonomy_path <- file.path(model_dir,"/autonomy")
-  
+
 
 if (!file.exists(rds_file_path)) {
 # List all files in the directory with the .RDS extension
