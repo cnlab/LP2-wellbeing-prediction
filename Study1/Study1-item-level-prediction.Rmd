@@ -96,15 +96,14 @@ table <- function(correlation_data) {
 # load data
 
 ```{r load-data}
-data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/"
-
-data = read.csv(file.path(data_dir,"well-being-prediction/data/osf/WBP_Study1_Cleaned.csv"))
-
+data_dir="~/Desktop/LP2-wellbeing-prediction" # set file path 
+data = read.csv(file.path(data_dir,"data/WBP_Study1_Cleaned.csv"))
 df <- data %>%
-select(1, starts_with("pre")) %>% 
-filter(rowSums(is.na(select(., starts_with("pre")))) == 0) 
+  dplyr::select(1, starts_with("pre_")) %>%
+  filter(rowSums(is.na(across(starts_with("pre_")))) == 0)
 
-embeddings <- read_rds("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention/data_prediction/embeddings/study_1/all_embeddings.rds")
+
+embeddings <- readRDS(file.path(data_dir,"embeddings/Study1_all_embeddings.rds"))
 ```
 
 # Inter-item Correlations
@@ -112,7 +111,7 @@ embeddings <- read_rds("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_pe
 ```{r}
 
 items = data %>% 
-  select(42:63)
+  dplyr::select(42:63)
 
 
 calculate_cronbach_alpha <- function(df) {
@@ -127,7 +126,7 @@ calculate_cronbach_alpha <- function(df) {
   
   # Loop through each subscale and calculate Cronbach's alpha
   for (subscale in subscales) {
-    # Select columns for the current subscale
+    # dplyr::select columns for the current subscale
     subscale_cols <- grep(paste0("^", subscale, "_"), colnames(df), value = TRUE)
     
     if (length(subscale_cols) > 0) {
@@ -140,10 +139,10 @@ calculate_cronbach_alpha <- function(df) {
   }
   
   # Calculate Cronbach's alpha for all PWB items excluding SWLS items
-  # Select PWB columns
+  # dplyr::select PWB columns
   pwb_cols <- grep("^PWB_", colnames(df), value = TRUE)
   
-  # Select SWLS columns
+  # dplyr::select SWLS columns
   swls_cols <- grep("^SWLS_", colnames(df), value = TRUE)
   
   # Ensure there are columns to exclude
@@ -162,11 +161,10 @@ calculate_cronbach_alpha <- function(df) {
   return(alpha_results)
 }
 
-
 alpha_results <- calculate_cronbach_alpha(items)
 
 pwb = items %>% 
-  select(1:18)
+  dplyr::select(1:18)
 
 pwb_alpha_value = psych::alpha(pwb)$total$raw_alpha
 alpha_results <- rbind(alpha_results, data.frame(subscale = "PWB", alpha = pwb_alpha_value))
@@ -212,11 +210,9 @@ alpha_results %>%
 
 ```{r}
 affect <- df %>%
-  select(starts_with("pre_SWLS"))
+  dplyr::select(starts_with("pre_SWLS"))
 
-data_dir = "/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention"
-
-rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/affect_item_output.RDS") #update with the path to each model
+rds_file_path <- file.path(data_dir, "supp/Study1/Item-level-analyses/affect_item_output.RDS") #update with the path to each model
 
 if (!file.exists(rds_file_path)) {
   affect_item <- textTrainLists(
@@ -239,11 +235,6 @@ if (!file.exists(rds_file_path)) {
 
 affect_item_predictions <-as.data.frame(affect_item$predictions[1:15])
 models <- c(colnames(affect_item$predictions[1:15]))
-
-
-affect_item_predictions <-as.data.frame(affect_item$predictions[1:15])
-models <- c(colnames(affect_item$predictions[1:15]))
-
 
 for (i in 1:5) {
   column_name <- paste0("pre_SWLS_", i)
@@ -275,7 +266,7 @@ affect_item_results$SWLS <- str_extract(affect_item_results$descriptions, "[^_]+
 
 # Remove the original "descriptions" column
 affect_item_results <- affect_item_results %>% 
-  select(-descriptions)
+  dplyr::select(-descriptions)
 
 affect_item_results$correlation <- as.numeric(affect_item_results$correlation)
 
@@ -345,9 +336,9 @@ affect_heat
 ```{r}
 
 purpose <- df %>%
-  select(starts_with("pre_Purpose_in_Life"))
+  dplyr::select(starts_with("pre_Purpose_in_Life"))
 
-rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/purpose_item_level_output.RDS") #update with the path to each model
+rds_file_path <- file.path(data_dir, "supp/Study1/Item-level-analyses/purpose_item_level_output.RDS") #update with the path to each model model
 
 if (!file.exists(rds_file_path)) {
  purpose_item <- textTrainLists(
@@ -405,7 +396,7 @@ purpose_item_results$purpose <- str_extract(purpose_item_results$descriptions, "
 
 # Remove the original "descriptions" column
 purpose_item_results <- purpose_item_results %>% 
-  select(-descriptions)
+  dplyr::select(-descriptions)
 
 purpose_item_results$correlation <- as.numeric(purpose_item_results$correlation)
 
@@ -472,9 +463,9 @@ purpose_heat
 
 ```{r}
 relationships <- df %>%
-  select(starts_with("pre_Positive_Relations"))
+  dplyr::select(starts_with("pre_Positive_Relations"))
 
-rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/relationships_item_level_output.RDS") #update with the path to each model
+rds_file_path <- file.path(data_dir, "supp/Study1/Item-level-analyses/relationships_item_level_output.RDS") #update with the path to each model model
 
 if (!file.exists(rds_file_path)) {
  relationships_item <- textTrainLists(
@@ -533,7 +524,7 @@ relationships_results$relationships <- str_extract(relationships_results$descrip
 
 # Remove the original "descriptions" column
 relationships_results <- relationships_results %>% 
-  select(-descriptions)
+  dplyr::select(-descriptions)
 
 relationships_results$correlation <- as.numeric(relationships_results$correlation)
 
@@ -603,10 +594,10 @@ relationships_heat
 ```{r}
 
 acceptance <- df %>%
-  select(starts_with("pre_Self-Acceptance"))
+  dplyr::select(starts_with("pre_Self.Acceptance")) %>%
+  rename_with(~ gsub("\\.", "-", .), starts_with("pre_Self.Acceptance")) #replace period with _
 
-rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/acceptance_item_output.RDS") #update with the path to each model
-
+rds_file_path <- file.path(data_dir, "supp/Study1/Item-level-analyses/acceptance_item_output.RDS") #update with the path to each model model
 
 if (!file.exists(rds_file_path)) {
  acceptance_item <- textTrainLists(
@@ -632,7 +623,6 @@ if (!file.exists(rds_file_path)) {
 acceptance_item_predictions <-as.data.frame(acceptance_item$predictions[1:9])
 models <- c(colnames(acceptance_item$predictions[1:9]))
 
-
 for (i in 1:3) {
   column_name <- paste0("pre_Self-Acceptance_", i)
   result <- calculate_and_store_rmse(
@@ -646,8 +636,9 @@ for (i in 1:3) {
 acceptance_rmse <- results %>%
   bind_rows() %>%
   distinct() %>% 
-  filter(grepl("Self-Acceptance", Model, ignore.case = TRUE))
+  filter(grepl("Self-Acceptance", Model, ignore.case = TRUE)) 
 }
+
 acceptance_results <- acceptance_item$results
 acceptance_results$RMSE <- acceptance_rmse$RMSE
 table(acceptance_results)
@@ -661,7 +652,7 @@ acceptance_results$acceptance <- str_extract(acceptance_results$descriptions, "[
 
 # Remove the original "descriptions" column
 acceptance_results <- acceptance_results %>% 
-  select(-descriptions)
+  dplyr::select(-descriptions)
 
 acceptance_results$correlation <- as.numeric(acceptance_results$correlation)
 
@@ -732,9 +723,10 @@ acceptance_heat
 
 ```{r}
 growth <- df %>%
-  select(starts_with("pre_Personal_Growth"))
+  dplyr::select(starts_with("pre_Personal_Growth"))
 
-rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/growth_item_output.RDS") #update with
+rds_file_path <- file.path(data_dir, "supp/Study1/Item-level-analyses/growth_item_output.RDS") #update with the path to each model model
+
 
 if (!file.exists(rds_file_path)) {
  growth_item <- textTrainLists(
@@ -791,7 +783,7 @@ growth_results$growth <- str_extract(growth_results$descriptions, "[^_]+$")
 
 # Remove the original "descriptions" column
 growth_results <- growth_results %>% 
-  select(-descriptions)
+  dplyr::select(-descriptions)
 
 growth_results$correlation <- as.numeric(growth_results$correlation)
 
@@ -863,10 +855,9 @@ growth_heat
 ```{r}
 
 autonomy <- df %>%
-  select(starts_with("pre_Autonomy"))
+  dplyr::select(starts_with("pre_Autonomy"))
 
-
-rds_file_path <- file.path(data_dir, "data_prediction/models/Study-1/Non-Content-Words/Item-level-analyses/autonomy_item_output.RDS") #update with
+rds_file_path <- file.path(data_dir, "supp/Study1/Item-level-analyses/autonomy_item_output.RDS") #update with the path to each model model
 
 
 if (!file.exists(rds_file_path)) {
@@ -923,7 +914,7 @@ autonomy_results$autonomy <- str_extract(autonomy_results$descriptions, "[^_]+$"
 
 # Remove the original "descriptions" column
 autonomy_results <- autonomy_results %>% 
-  select(-descriptions)
+  dplyr::select(-descriptions)
 
 autonomy_results$correlation <- as.numeric(autonomy_results$correlation)
 

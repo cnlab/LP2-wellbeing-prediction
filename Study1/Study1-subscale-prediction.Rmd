@@ -165,10 +165,10 @@ process_results <- function(result_list) {
 # load data
 
 ```{r load-data}
-data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/"
-df = read.csv(file.path(data_dir,"well-being-prediction/data/osf/WBP_Study1_Cleaned.csv"))
-embeddings <- readRDS(file.path(data_dir,"within_person_intervention/data_prediction/embeddings/study_1/all_embeddings.rds"))
-model_dir = "/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-wellbeing-prediction/Subscale-Models/"
+data_dir="~/Desktop/LP2-wellbeing-prediction" # set file path 
+df = read.csv(file.path(data_dir,"data/WBP_Study1_Cleaned.csv"))
+embeddings <- readRDS(file.path(data_dir,"embeddings/Study1_all_embeddings.rds"))
+model_dir = "~/Desktop/LP2-wellbeing-prediction/models/Study1"
 
 ```
 

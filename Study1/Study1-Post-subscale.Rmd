@@ -173,12 +173,13 @@ process_results <- function(result_list) {
 # load data
 
 ```{r load-data}
-data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/"
-df = read.csv(file.path(data_dir,"well-being-prediction/data/osf/WBP_Study1_Cleaned.csv"))
+data_dir="~/Desktop/LP2-wellbeing-prediction" # set file path 
+df = read.csv(file.path(data_dir,"data/WBP_Study1_Cleaned.csv"))
+
 df <- df %>%
-filter(rowSums(is.na(select(., starts_with("post")))) == 0)
-embeddings <- read_rds("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/embeddings/Study1_post__embeddings.rds")
-model_dir = "/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-wellbeing-prediction/subscale-models-post"
+  filter(rowSums(is.na(across(starts_with("post")))) == 0)
+embeddings <- readRDS(file.path(data_dir,"supp/embeddings/Study1_post__embeddings.rds"))
+model_dir = "supp/Study1/post/subscale-models-post"
 ```
 
 # Subscale Predicition {.tabset}
@@ -186,6 +187,7 @@ model_dir = "/Users/sm9518/Library/CloudStorage/Dropbox/LP2-wellbeing-pred/LP2-w
 ## Autonomy {.tabset}
 
 ```{r}
+
 rds_file_path <- file.path(model_dir, "/autonomy/autonomy_subscale_df.RDS") #update with the path to each model
 autonomy_path <- file.path(model_dir,"/autonomy")
   
