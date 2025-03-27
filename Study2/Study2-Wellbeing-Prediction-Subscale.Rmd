@@ -113,9 +113,9 @@ table <- function(correlation_data) {
 # load data
 
 ```{r load-data}
-data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
+data_dir="~/Desktop/LP2-wellbeing-prediction"
 
-df = read.csv(file.path(data_dir,"data/osf/WBP_Study2_Behavioral_Cleaned.csv"))
+df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
 
 
 df = df %>% 
@@ -124,7 +124,7 @@ df = df %>%
 
 ###prep the text data 
 
-text = read.csv(file.path(data_dir,"data_text/WBP_Study2_Text_cleaned.csv"))
+text = read.csv(file.path(data_dir,"data/WBP_Study2_Text_cleaned.csv"))
 
 text_grouped <- text %>%
   group_by(pID, prompt) %>%
@@ -144,15 +144,14 @@ text_embed_pids <- unique(text_embed$pID)
 df <- df %>%
   filter(pID %in% text_embed_pids)
 
-
-embeddings <- readRDS(file.path(data_dir,"embeddings/wellbeing-prediction-embeddings.rds"))
+embeddings <- readRDS(file.path(data_dir,"embeddings/Study2_wellbeing-prediction-embeddings.rds"))
 ```
 
 # Inter-item Correlations
 
 ```{r}
 
-items = read.csv(file.path(data_dir,'data/osf/WBP_Study2_items.csv'))
+items = read.csv(file.path(data_dir,'data/WBP_Study2_items.csv'))
 
 items = items %>% 
   select(-X,-pID,-Reflection_Type,-survey_name)
@@ -252,10 +251,7 @@ apa.cor.table(df[2:9],landscape = T, filename = file.path(data_dir,"Study2_corre
 ### Models {.tabset}
 
 ```{r}
-
-
-rds_file_path <- file.path(data_dir, "models/prelim-analyses/SWLS_subscale.RDS") #update with the path to each model
-
+rds_file_path <- file.path(data_dir, "models/Study2/SWLS_subscale.RDS") #update with the path to each model
 
 if (!file.exists(rds_file_path)) {
   SWLS_subscale <- textTrainLists(
@@ -315,7 +311,7 @@ SWLS_subscale_results <-
                      NA))
 
 
-saveRDS(SWLS_subscale_results,file.path(data_dir,"models/prelim-analyses/SWLS_subscale_results.RDS"))
+#saveRDS(SWLS_subscale_results,file.path(data_dir,"models/prelim-analyses/SWLS_subscale_results.RDS"))
 ```
 
 ### Heatmaps
@@ -361,7 +357,7 @@ SWLS_heat
 
 ```{r}
 
-rds_file_path <- file.path(data_dir, "models/prelim-analyses/autonomy_subscale.RDS") #update with the path to each model
+rds_file_path <- file.path(data_dir, "models/Study2/autonomy_subscale.RDS") #update with the path to each model
 
 if (!file.exists(rds_file_path)) {
   Autonomy_subscale <- textTrainLists(
@@ -653,7 +649,7 @@ SWLS_results<-
 
 all_effects = rbind(autonomy_results,SWLS_results)
 
-saveRDS(all_effects,file.path(data_dir,"models/prelim-analyses/study2_all_effects.RDS"))
+#saveRDS(all_effects,file.path(data_dir,"models/prelim-analyses/study2_all_effects.RDS"))
 
 
 ### subset 
@@ -704,9 +700,8 @@ all_effects |>
 # Text only Responses {.tabset}
 
 ```{r}
-data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
-
-df = read.csv(file.path(data_dir,"data/osf/WBP_Study2_Behavioral_Cleaned.csv"))
+data_dir="~/Desktop/LP2-wellbeing-prediction"
+df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
 ###turn to wide format 
 
 df = df %>% 
@@ -715,7 +710,7 @@ df = df %>%
 
 ###prep the text data 
 
-text = read.csv(file.path(data_dir,"data_text/WBP_Study2_Text_cleaned.csv"))
+text = read.csv(file.path(data_dir,"data/WBP_Study2_Text_cleaned.csv"))
 
 ###prep the text data 
 
@@ -744,7 +739,7 @@ df <- df %>%
   filter(pID %in% text_embed_pids)
 
 
-embeddings <- readRDS(file.path(data_dir,"embeddings/Text_Only_wellbeing-prediction-embeddings.rds"))
+embeddings <- readRDS(file.path(data_dir,"supp/embeddings/Study2_Text_Only_wellbeing-prediction-embeddings.rds"))
 
 ```
 
@@ -802,7 +797,7 @@ table <- function(correlation_data) {
 
 ```{r}
 
-rds_file_path <- file.path(data_dir, "models/prelim-analyses/Text_Only_SWLS_subscale.RDS") #update with the path to each model
+rds_file_path <- file.path(data_dir, "models/Study2/Text_Only_SWLS_subscale.RDS") #update with the path to each model
 
 
 if (!file.exists(rds_file_path)) {
@@ -911,7 +906,7 @@ SWLS_heat
 
 ```{r}
 
-rds_file_path <- file.path(data_dir, "models/prelim-analyses/Text_Only_autonomy_subscale.RDS") #update with the path to each model
+rds_file_path <- file.path(data_dir, "models/Study2/Text_Only_autonomy_subscale.RDS") #update with the path to each model
 
 
 if (!file.exists(rds_file_path)) {
@@ -1170,7 +1165,7 @@ autonomy_results<-
     outcome = ifelse(grepl("_sub", model), gsub(".*autonomy_", "", gsub("_sub", "", model)), NA))
 
 
-#### SWLA 
+#### SWLS
 
 result_list <- list(
   SWLS_acceptance_sub = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB self_acceptance`$results,
@@ -1291,10 +1286,8 @@ table <- function(correlation_data) {
 
 
 ```{r}
-data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
-
-df = read.csv(file.path(data_dir,"data/osf/WBP_Study2_Behavioral_Cleaned.csv"))
-
+data_dir="~/Desktop/LP2-wellbeing-prediction"
+df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
 ###turn to wide format 
 
 df = df %>% 
@@ -1303,7 +1296,7 @@ df = df %>%
 
 ###prep the text data 
 
-text = read.csv(file.path(data_dir,"data_text/WBP_Study2_Text_cleaned.csv"))
+text = read.csv(file.path(data_dir,"data/WBP_Study2_Text_cleaned.csv"))
 
 text = text %>% 
   select(pID,prompt,type) %>% 
@@ -1334,9 +1327,7 @@ df <- df %>%
 #  na.rm = TRUE,
 #  locale = "en_US")
 
-
-embeddings <- readRDS(file.path(data_dir,"embeddings/Audio_Only_wellbeing-prediction-embeddings.rds"))
-
+embeddings <- readRDS(file.path(data_dir,"supp/embeddings/Study2_Audio_Only_wellbeing-prediction-embeddings.rds"))
 ```
 
 ## Satisfaction with Life {.tabset}
@@ -1345,7 +1336,7 @@ embeddings <- readRDS(file.path(data_dir,"embeddings/Audio_Only_wellbeing-predic
 
 ```{r}
 
-rds_file_path <- file.path(data_dir, "models/prelim-analyses/Audio_Only_SWLS_subscale.RDS") #update with the path to each model
+rds_file_path <- file.path(data_dir, "models/Study2/Audio_Only_SWLS_subscale.RDS") #update with the path to each model
 
 
 if (!file.exists(rds_file_path)) {
@@ -1457,7 +1448,7 @@ SWLS_heat
 
 ```{r}
 
-rds_file_path <- file.path(data_dir, "models/prelim-analyses/Audio_Only_Autonomy_subscale.RDS") #update with the path to each model
+rds_file_path <- file.path(data_dir, "models/Study2/Audio_Only_Autonomy_subscale.RDS") #update with the path to each model
 
 
 if (!file.exists(rds_file_path)) {

@@ -54,16 +54,17 @@ calculate_errors <- function(column_name, model_names, actual_values, predicted_
 # Satisfaction with Life Comparisons 
 
 ```{r load SWLS text only Data}
-df <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Behavioral_Cleaned.csv")
 
-###turn to wide format 
+data_dir="~/Desktop/LP2-wellbeing-prediction"
+df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
+
 
 df = df %>% 
   dplyr::select(pID, score, measure) %>% 
   spread(key = measure, value = score)
 
 ###prep the text data 
-text <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Text_cleaned.csv")
+text = read.csv(file.path(data_dir,"data/WBP_Study2_Text_cleaned.csv"))
 
 #make pseudo text column since we cant share the raw text
 
@@ -92,9 +93,7 @@ text_embed_pids <- unique(text_embed_text_only$pID)
 df <- df %>%
   filter(pID %in% text_embed_pids)
 
-
-SWLS_subscale_Text <- readRDS("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/supp/embeddings/Text_Only_SWLS_subscale.RDS")
-
+SWLS_subscale_Text = readRDS(file.path(data_dir,"/supp/embeddings/Text_Only_SWLS_subscale.RDS"))
 ```
 
 
@@ -138,17 +137,16 @@ SWLS_Text_SWLS_mean_df<- as.data.frame(all_errors$`SWLS mean`$`embeddings$texts$
 
 ```{r Load SWLS Audio Data}
 
-###prep the text data 
-df <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Behavioral_Cleaned.csv")
+data_dir="~/Desktop/LP2-wellbeing-prediction"
+df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
 
-###turn to wide format 
 
 df = df %>% 
   dplyr::select(pID, score, measure) %>% 
   spread(key = measure, value = score)
 
 ###prep the text data 
-text <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Text_cleaned.csv")
+text = read.csv(file.path(data_dir,"data/WBP_Study2_Text_cleaned.csv"))
 
 text = text |> 
   mutate(text = stri_rand_strings(n = n(), length = 500, pattern = "[A-Za-z0-9 ]"))
@@ -175,11 +173,7 @@ text_embed_pids <- unique(text_embed_audio_only$pID)
 df <- df %>%
   filter(pID %in% text_embed_pids)
 
-
-
-
-SWLS_subscale_Audio <- readRDS("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/supp/embeddings/Audio_Only_SWLS_subscale.RDS")
-
+SWLS_subscale_Audio = readRDS(file.path(data_dir,"/supp/embeddings/Audio_Only_SWLS_subscale.RDS"))
 ```
 
 ```{r compute SWLS audio erros }
@@ -324,16 +318,17 @@ write.csv(SWLS_model_errors,"SWLS_model_errors.csv")
 ## Comparing squared-errors
 
 ```{r load autonomy text only data}
-df <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Behavioral_Cleaned.csv")
+data_dir="~/Desktop/LP2-wellbeing-prediction"
+df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
 
-###turn to wide format 
 
 df = df %>% 
   dplyr::select(pID, score, measure) %>% 
   spread(key = measure, value = score)
 
 ###prep the text data 
-text <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Text_cleaned.csv")
+text = read.csv(file.path(data_dir,"data/WBP_Study2_Text_cleaned.csv"))
+
 text = text |> 
   mutate(text = stri_rand_strings(n = n(), length = 500, pattern = "[A-Za-z0-9 ]"))
 
@@ -363,7 +358,7 @@ text_embed_pids <- unique(text_embed_text_only$pID)
 df <- df %>%
   filter(pID %in% text_embed_pids)
 
-Autonomy_subscale_Text = readRDS("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention/data_prediction/models/Well-being-prediction/prelim-analyses/Text_Only_autonomy_subscale.RDS")
+Autonomy_subscale_Text = readRDS(file.path(data_dir,"/supp/embeddings/Text_Only_autonomy_subscale.RDS"))
 
 ```
 
@@ -408,16 +403,17 @@ Autonomy_Text_SWLS_mean_df<- as.data.frame(all_errors$`SWLS mean`$`embeddings$te
 ```
 
 ```{r load-in-autonomy-audio}
-df <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Behavioral_Cleaned.csv")
+data_dir="~/Desktop/LP2-wellbeing-prediction"
+df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
 
-###turn to wide format 
 
 df = df %>% 
   dplyr::select(pID, score, measure) %>% 
   spread(key = measure, value = score)
 
 ###prep the text data 
-text <- read_csv("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/osf/WBP_Study2_Text_cleaned.csv")
+text = read.csv(file.path(data_dir,"data/WBP_Study2_Text_cleaned.csv"))
+
 text = text |> 
   mutate(text = stri_rand_strings(n = n(), length = 500, pattern = "[A-Za-z0-9 ]"))
 
@@ -443,8 +439,7 @@ text_embed_pids <- unique(text_embed_audio_only$pID)
 df <- df %>%
   filter(pID %in% text_embed_pids)
 
- Autonomy_Audio <- readRDS("/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention/data_prediction/models/Well-being-prediction/prelim-analyses/Audio_Only_autonomy_subscale.RDS")
-
+Autonomy_Audio = readRDS(file.path(data_dir,"/supp/embeddings/Audio_Only_autonomy_subscale.RDS"))
 ```
 
 

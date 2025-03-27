@@ -41,19 +41,18 @@ plot_aes = theme_minimal() +
 ```
 
 ```{r prep-behavioral-data}
-data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
-
-df = read.csv(file.path(data_dir,"data/LP2_Wellbeing-Prediction_Behavioral.csv"))
+data_dir="~/Desktop/LP2-wellbeing-prediction" # set file path 
+df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
 
 ###turn to wide format 
 
 df = df %>% 
-  select(pID, score, measure) %>% 
+  dplyr::select(pID, score, measure) %>% 
    spread(key = measure, value = score)
 
 ###prep the text data 
 
-text = read.csv(file.path(data_dir,"data_text/wellbeing-prediction-text-long.csv"))
+text = read.csv(file.path(data_dir,"data/WBP_Study2_Text_cleaned.csv"))
 
 text_grouped <- text %>%
   group_by(pID, prompt) %>%
@@ -91,11 +90,11 @@ corr_on_bootstrap <- function(split) {
 # Testing if Satisfaction with life Language Assessments can Differentiate SWL from... {.tabset}
 
 ```{r}
-data_dir = '/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/models/prelim-analyses/'
+model_dir = '~/Desktop/LP2-wellbeing-prediction/models/Study2/'
 
 # Load predictions for both models
-model1_predictions <- readRDS(file.path(data_dir,"SWLS_subscale.RDS"))
-model2_predictions <- readRDS(file.path(data_dir,"SWLS_subscale.RDS"))
+model1_predictions <- readRDS(file.path(model_dir,"SWLS_subscale.RDS"))
+model2_predictions <- readRDS(file.path(model_dir,"SWLS_subscale.RDS"))
 ```
 
 
@@ -121,7 +120,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -135,7 +134,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -198,7 +197,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -212,7 +211,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -273,7 +272,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -287,7 +286,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -348,7 +347,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -362,7 +361,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -423,7 +422,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -437,7 +436,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -498,7 +497,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -512,7 +511,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -573,7 +572,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -587,7 +586,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -629,8 +628,8 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
 ```{r}
 
 # Load predictions for both models
-model1_predictions <- readRDS(file.path(data_dir,"autonomy_subscale.RDS"))
-model2_predictions <- readRDS(file.path(data_dir,"autonomy_subscale.RDS"))
+model1_predictions <- readRDS(file.path(model_dir,"autonomy_subscale.RDS"))
+model2_predictions <- readRDS(file.path(model_dir,"autonomy_subscale.RDS"))
 # Load predictions for both models
 ```
 
@@ -656,7 +655,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -670,7 +669,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -731,7 +730,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -745,7 +744,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -805,7 +804,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -819,7 +818,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -879,7 +878,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -893,7 +892,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -953,7 +952,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -967,7 +966,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -1027,7 +1026,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -1041,7 +1040,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(
@@ -1100,7 +1099,7 @@ model1_boot_corrs_shuffled <- model1_boots_shuffled %>%
 
 model1_boot_distribution_shuffled <- model1_boot_corrs_shuffled %>%
   unnest(corr_model1) %>%
-  select(corr_model1)
+  dplyr::select(corr_model1)
 
 # Create data frame for Model 2
 model2_df <- tibble::tibble(y_model2, yhat_model2)
@@ -1114,7 +1113,7 @@ model2_boot_corrs_shuffled <- model2_boots_shuffled %>%
   mutate(corr_model2 = map(splits, corr_on_bootstrap))
 model2_boot_distribution_shuffled <- model2_boot_corrs_shuffled %>%
   unnest(corr_model2) %>%
-  select(corr_model2)
+  dplyr::select(corr_model2)
 
 # Combine the distributions
 comparison_df_shuffled <- tibble::tibble(

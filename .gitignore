@@ -15,3 +15,6 @@
 Forest-plot.Rmd
 /models
 /embeddings
+*.doc
+*.csv
+/supp/ 
