@@ -22,7 +22,7 @@ Study1-post-item:
 Study2: Study2-main Study2-SI
 
 Study2-main:
-	Rscript -e "rmarkdown::render('Study2/Study2-Wellbeing-Prediction-Subscale.Rmd)"
+	Rscript -e "rmarkdown::render('Study2/Study2-Wellbeing-Prediction-Subscale.Rmd')"
 	
 Study2-SI: Study2-compare-methods Study2-bootstrapping
 
@@ -35,6 +35,6 @@ Study2-bootstrapping:
 Study3: Study3-main
 
 Study3-main: 
-	Rscript -e "rmarkdown::render('Study3/Study3-WBP.Rmd')"`
+	Rscript -e "rmarkdown::render('Study3/Study3-WBP.Rmd')"
 	
 

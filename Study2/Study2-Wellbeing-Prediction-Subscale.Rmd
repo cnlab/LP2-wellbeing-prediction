@@ -410,7 +410,7 @@ Autonomy_subscale_results <-
     outcome = ifelse(grepl("embeddings\\$texts\\$Autonomy_", descriptions), 
                      gsub(".*Autonomy_", "", descriptions),
                      NA))
-saveRDS(Autonomy_subscale_results,file.path(data_dir,"models/prelim-analyses/Autonomy_subscale_results.RDS"))
+#saveRDS(Autonomy_subscale_results,file.path(data_dir,"models/prelim-analyses/Autonomy_subscale_results.RDS"))
 ```
 
 ### Heatmaps 
