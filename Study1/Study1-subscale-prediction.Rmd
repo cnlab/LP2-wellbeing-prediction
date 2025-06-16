@@ -169,8 +169,108 @@ data_dir="~/Desktop/LP2-wellbeing-prediction" # set file path
 df = read.csv(file.path(data_dir,"data/WBP_Study1_Cleaned.csv"))
 embeddings <- readRDS(file.path(data_dir,"embeddings/Study1_all_embeddings.rds"))
 model_dir = "~/Desktop/LP2-wellbeing-prediction/models/Study1"
+```
+
+# Reliabilities
+
+```{r}
+
+items = df %>% 
+  dplyr::select(42:63)
+
+
+calculate_alpha_omega <- function(df) {
+  # Identify subscales based on column names
+  subscales <- unique(sub("_[0-9]+$", "", colnames(df)))
+  
+  # Remove non-item columns
+  subscales <- subscales[!subscales %in% c("pID", "survey_name")]
+  
+  # Initialize a dataframe to store results
+  results <- data.frame(subscale = character(), 
+                        alpha = numeric(), 
+                        omega = numeric(),
+                        stringsAsFactors = FALSE)
+  
+  # Loop through each subscale
+  for (subscale in subscales) {
+    subscale_cols <- grep(paste0("^", subscale, "_"), colnames(df), value = TRUE)
+    
+    if (length(subscale_cols) > 1) {  # omega needs at least 2 items
+      items_matrix <- df[, subscale_cols]
+      
+      alpha_val <- tryCatch(
+        psych::alpha(items_matrix, check.keys = TRUE)$total$raw_alpha,
+        error = function(e) NA
+      )
+      
+      omega_val <- tryCatch(
+        psych::omega(items_matrix, nfactors = 1, warnings = FALSE)$omega.tot,
+        error = function(e) NA
+      )
+      
+      results <- rbind(results, data.frame(subscale = subscale, alpha = alpha_val, omega = omega_val))
+    }
+  }
+  
+  # Calculate omega for PWB-only (excluding SWLS)
+  pwb_cols <- grep("^PWB_", colnames(df), value = TRUE)
+  swls_cols <- grep("^SWLS_", colnames(df), value = TRUE)
+  pwb_excl_swls <- setdiff(pwb_cols, swls_cols)
+  
+  if (length(pwb_excl_swls) > 1) {
+    items_matrix <- df[, pwb_excl_swls]
+    
+    alpha_val <- tryCatch(
+      psych::alpha(items_matrix, check.keys = TRUE)$total$raw_alpha,
+      error = function(e) NA
+    )
+    
+    omega_val <- tryCatch(
+      psych::omega(items_matrix, nfactors = 1, warnings = FALSE)$omega.tot,
+      error = function(e) NA
+    )
+    
+    results <- rbind(results, data.frame(subscale = "PWB", alpha = alpha_val, omega = omega_val))
+  }
+  
+  return(results)
+}
+
+
+omega_results <- calculate_alpha_omega(items)
+
+pwb = items %>% 
+  dplyr::select(1:18)
+
+pwb_alpha_value <- psych::alpha(pwb)$total$raw_alpha
+pwb_omega_value <- psych::omega(pwb, nfactors = 1, warnings = FALSE)$omega.tot
+
+# Create the new row
+pwb_row <- data.frame(
+  subscale = "PWB",
+  alpha = pwb_alpha_value,
+  omega = pwb_omega_value
+)
+
+# If omega_results doesn't exist yet, initialize it
+if (!exists("omega_results")) {
+  omega_results <- pwb_row
+} else {
+  omega_results <- rbind(omega_results, pwb_row)
+}
+
+
+omega_results %>% 
+  mutate(alpha = round(alpha, 3),
+         omega = round(omega,3)) %>% 
+  reactable(striped = TRUE,
+            filterable = TRUE,
+            resizable = TRUE,
+            pageSizeOptions = 25)
 
 ```
+
 
 # Correlations {.tabset}
 
@@ -272,6 +372,42 @@ autonomy_results<-
 #### Estimates 
 
 ```{r}
+# attempt to calculate disattenuated correlations
+omega_results = omega_results |> 
+  select(subscale,omega) |> 
+  mutate(subscale = case_when(
+    str_detect(subscale, "Self\\.Acceptance") ~ "acceptance",
+    str_detect(subscale, "Autonomy") ~ "autonomy",
+    str_detect(subscale, "Growth") ~ "growth",
+    str_detect(subscale, "Purpose") ~ "purpose",
+    str_detect(subscale, "Relations") ~ "relationships",
+    str_detect(subscale, "SWLS") ~ "SWLS",
+    str_detect(subscale, "Environmental_Mastery") ~ "mastery",
+    str_detect(subscale, "PWB") ~ "PWB",
+    TRUE ~ NA_character_  # catch anything unexpected
+  ))
+  
+
+r_xx_predictor <- 1
+
+# Tidy pipeline
+autonomy_results = autonomy_results %>%
+  # Join omega values by subscale/outcome
+  left_join(omega_results %>% select(subscale, omega), 
+            by = c("outcome" = "subscale")) %>%
+  # Convert correlation to numeric
+  mutate(
+    r = as.numeric(r),
+    r_disattenuated = r / sqrt(r_xx_predictor * omega)
+  ) %>%
+  # Round all numeric columns
+  mutate(across(where(is.numeric), ~ round(.x, 3))) 
+
+
+```
+
+
+```{r}
 table(autonomy_results)
 ```
 
@@ -280,9 +416,9 @@ table(autonomy_results)
 ```{r autonomy-subscale, fig.height=6, fig.width=6}
 autonomy_heat <- ggplot(autonomy_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
-  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
-
+ geom_text(aes(label = paste0(round(r, 2), "(", round(r_disattenuated, 2), ")")),
+          color = "black", size = 4) + 
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -363,6 +499,7 @@ accept_results<- accept_results %>%
   accept_results <- readRDS(rds_file_path)
 }
 
+
 ```
 
 ### Models {.tabset}
@@ -370,6 +507,20 @@ accept_results<- accept_results %>%
 #### Estimates 
 
 ```{r}
+
+# Tidy pipeline
+accept_results = accept_results %>%
+  # Join omega values by subscale/outcome
+  left_join(omega_results %>% select(subscale, omega), 
+            by = c("outcome" = "subscale")) %>%
+  # Convert correlation to numeric
+  mutate(
+    r = as.numeric(r),
+    r_disattenuated = r / sqrt(r_xx_predictor * omega)
+  ) %>%
+  # Round all numeric columns
+  mutate(across(where(is.numeric), ~ round(.x, 3))) 
+
 table(accept_results)
 ```
 
@@ -378,8 +529,9 @@ table(accept_results)
 ```{r acceptance-heat}
 accept_heat <- ggplot(accept_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
-  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+  geom_text(aes(label = paste0(round(r, 2), "(", round(r_disattenuated, 2), ")")),
+          color = "black", size = 4) + 
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -470,6 +622,18 @@ affect_results<- affect_results %>%
 #### Estimates 
 
 ```{r}
+
+affect_results= affect_results %>%
+  # Join omega values by subscale/outcome
+  left_join(omega_results %>% select(subscale, omega), 
+            by = c("outcome" = "subscale")) %>%
+  # Convert correlation to numeric
+  mutate(
+    r = as.numeric(r),
+    r_disattenuated = r / sqrt(r_xx_predictor * omega)
+  ) %>%
+  # Round all numeric columns
+  mutate(across(where(is.numeric), ~ round(.x, 3))) 
 table(affect_results)
 ```
 
@@ -479,8 +643,9 @@ table(affect_results)
 ```{r affect-heat, fig.height=6, fig.width=6}
 affect_heat <- ggplot(affect_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
-  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+ geom_text(aes(label = paste0(round(r, 2), "(", round(r_disattenuated, 2), ")")),
+          color = "black", size = 4) + 
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -569,6 +734,18 @@ growth_results<- growth_results %>%
 #### Estimates
 
 ```{r}
+
+growth_results= growth_results %>%
+  # Join omega values by subscale/outcome
+  left_join(omega_results %>% select(subscale, omega), 
+            by = c("outcome" = "subscale")) %>%
+  # Convert correlation to numeric
+  mutate(
+    r = as.numeric(r),
+    r_disattenuated = r / sqrt(r_xx_predictor * omega)
+  ) %>%
+  # Round all numeric columns
+  mutate(across(where(is.numeric), ~ round(.x, 3))) 
 table(growth_results)
 ```
 
@@ -577,8 +754,9 @@ table(growth_results)
 ```{r growth-heat}
 growth_heat <- ggplot(growth_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
-  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+  geom_text(aes(label = paste0(round(r, 2), "(", round(r_disattenuated, 2), ")")),
+          color = "black", size = 4) + 
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -666,6 +844,18 @@ purpose_results<- purpose_results %>%
 
 #### Estimates 
 ```{r}
+purpose_results = purpose_results %>%
+  # Join omega values by subscale/outcome
+  left_join(omega_results %>% select(subscale, omega), 
+            by = c("outcome" = "subscale")) %>%
+  # Convert correlation to numeric
+  mutate(
+    r = as.numeric(r),
+    r_disattenuated = r / sqrt(r_xx_predictor * omega)
+  ) %>%
+  # Round all numeric columns
+  mutate(across(where(is.numeric), ~ round(.x, 3))) 
+
 table(purpose_results)
 ```
 
@@ -675,8 +865,9 @@ table(purpose_results)
 ```{r purpose-heat, fig.height=6, fig.width=6}
 purpose_heat <- ggplot(purpose_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
-  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+ geom_text(aes(label = paste0(round(r, 2), "(", round(r_disattenuated, 2), ")")),
+          color = "black", size = 4) + 
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -763,6 +954,19 @@ relations_results<- relations_results %>%
 #### Estimates 
 
 ```{r}
+
+relations_results = relations_results %>%
+  # Join omega values by subscale/outcome
+  left_join(omega_results %>% select(subscale, omega), 
+            by = c("outcome" = "subscale")) %>%
+  # Convert correlation to numeric
+  mutate(
+    r = as.numeric(r),
+    r_disattenuated = r / sqrt(r_xx_predictor * omega)
+  ) %>%
+  # Round all numeric columns
+  mutate(across(where(is.numeric), ~ round(.x, 3))) 
+
 table(relations_results)
 ```
 
@@ -771,8 +975,9 @@ table(relations_results)
 ```{r relations-heat, fig.height=6, fig.width=6}
 relations_heat <- ggplot(relations_results, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(r, 3)), color = "black", size = 4) +
-  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+geom_text(aes(label = paste0(round(r, 2), "(", round(r_disattenuated, 2), ")")),
+          color = "black", size = 4) + 
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -788,7 +993,7 @@ relations_heat
 
 # All subscales Heatmap
 
-```{r all-subscales-heat}
+```{r all-subscales-heat, fig.height=6, fig.width=8}
 
 
 rds_file_path <- file.path(model_dir, "all_subscales.RDS") #update with the path to each model
@@ -821,10 +1026,9 @@ combined_df <- combined_df %>%
 
 all_heat <- ggplot(combined_df, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(r, 2), 
-                fontface = ifelse(p.value < 0.05, "bold", "plain")), 
-            color = "black", size = 4) +
-  geom_text(aes(label = sprintf("(%s)", round(RMSE, 2))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+  geom_text(aes(label = paste0(round(r, 2), "(", round(r_disattenuated, 2), ")")),
+          color = "black", size = 4) + 
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +

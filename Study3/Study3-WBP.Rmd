@@ -18,7 +18,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "Study3_figs/fig_")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "Study3_figs/fig_",dpi = 600)
 options(scipen=999)
 
 ```
@@ -36,10 +36,10 @@ devtools::install_github("hadley/emo")
 ```{r eval=FALSE, include=FALSE}
 
 install.packages("devtools")
-devtools::install_version("text", version = "1.2.1", repos = "http://cran.us.r-project.org")
+devtools::install_version("text", version = "1.2.1", repos = "http://cran.us.r-project.org", type = "source")
 
 #### as of 8/29 need to exclusively use version 1.2.1 to get around a fatal R issue
-
+install.packages("text")
 library(text)
 textrpp_install(prompt = F)
 textrpp_initialize()
@@ -154,8 +154,6 @@ process_results <- function(result_list) {
   return(results)
 }
 
-
-
 ```
 
 ```{r load-data}
@@ -167,7 +165,8 @@ df = df %>%
 embeddings <- readRDS(file.path(data_dir,"embeddings/Study3-WBP-embeddings.rds"))
 ```
 
-# Inter-item Correlations
+# Reliabilities
+
 
 ```{r}
 items = read.csv(file.path(data_dir,"data/WBP_Study3_Behavioral_Cleaned_items.csv"))
@@ -175,69 +174,115 @@ items = read.csv(file.path(data_dir,"data/WBP_Study3_Behavioral_Cleaned_items.cs
 items = items %>% 
   dplyr::select(-X,pID)
 
-calculate_cronbach_alpha <- function(df) {
+calculate_alpha_omega <- function(df) {
   # Identify subscales based on column names
   subscales <- unique(sub("_[0-9]+$", "", colnames(df)))
   
   # Remove non-item columns
   subscales <- subscales[!subscales %in% c("pID", "survey_name")]
   
-  # Initialize a dataframe to store alpha results
-  alpha_results <- data.frame(subscale = character(), alpha = numeric(), stringsAsFactors = FALSE)
+  # Initialize a dataframe to store results
+  results <- data.frame(subscale = character(), 
+                        alpha = numeric(), 
+                        omega = numeric(),
+                        stringsAsFactors = FALSE)
   
-  # Loop through each subscale and calculate Cronbach's alpha
+  # Loop through each subscale
   for (subscale in subscales) {
-    # dplyr::select columns for the current subscale
     subscale_cols <- grep(paste0("^", subscale, "_"), colnames(df), value = TRUE)
     
-    if (length(subscale_cols) > 0) {
-      # Calculate Cronbach's alpha
-      alpha_value <- psych::alpha(df[, subscale_cols], check.keys = TRUE)$total$raw_alpha
+    if (length(subscale_cols) > 1) {  # omega needs at least 2 items
+      items_matrix <- df[, subscale_cols]
       
-      # Store the result in the dataframe
-      alpha_results <- rbind(alpha_results, data.frame(subscale = subscale, alpha = alpha_value))
+      alpha_val <- tryCatch(
+        psych::alpha(items_matrix, check.keys = TRUE)$total$raw_alpha,
+        error = function(e) NA
+      )
+      
+      omega_val <- tryCatch(
+        psych::omega(items_matrix, nfactors = 1, warnings = FALSE)$omega.tot,
+        error = function(e) NA
+      )
+      
+      results <- rbind(results, data.frame(subscale = subscale, alpha = alpha_val, omega = omega_val))
     }
   }
   
-  # Calculate Cronbach's alpha for all PWB items excluding SWLS items
-  # dplyr::select PWB columns
+  # Calculate omega for PWB-only (excluding SWLS)
   pwb_cols <- grep("^PWB_", colnames(df), value = TRUE)
-  
-  # dplyr::select SWLS columns
   swls_cols <- grep("^SWLS_", colnames(df), value = TRUE)
+  pwb_excl_swls <- setdiff(pwb_cols, swls_cols)
   
-  # Ensure there are columns to exclude
-  if (length(pwb_cols) > 0 && length(swls_cols) > 0) {
-    # Exclude SWLS columns from PWB columns
-    pwb_excluding_swls_cols <- setdiff(pwb_cols, swls_cols)
+  if (length(pwb_excl_swls) > 1) {
+    items_matrix <- df[, pwb_excl_swls]
     
-    if (length(pwb_excluding_swls_cols) > 0) {
-      pwb_alpha_value <- psych::alpha(df[, pwb_excluding_swls_cols], check.keys = TRUE)$total$raw_alpha
-      
-      # Add the result to the dataframe
-      alpha_results <- rbind(alpha_results, data.frame(subscale = "PWB", alpha = pwb_alpha_value))
-    }
+    alpha_val <- tryCatch(
+      psych::alpha(items_matrix, check.keys = TRUE)$total$raw_alpha,
+      error = function(e) NA
+    )
+    
+    omega_val <- tryCatch(
+      psych::omega(items_matrix, nfactors = 1, warnings = FALSE)$omega.tot,
+      error = function(e) NA
+    )
+    
+    results <- rbind(results, data.frame(subscale = "PWB", alpha = alpha_val, omega = omega_val))
   }
   
-  return(alpha_results)
+  return(results)
 }
 
-
-alpha_results <- calculate_cronbach_alpha(items)
+omega_results <- calculate_alpha_omega(items)
 
 pwb = items %>% 
   dplyr::select(3:20)
 
-pwb_alpha_value = psych::alpha(pwb)$total$raw_alpha
-alpha_results <- rbind(alpha_results, data.frame(subscale = "PWB", alpha = pwb_alpha_value))
 
 
-alpha_results %>% 
-  mutate(alpha = round(alpha, 3)) %>% 
-  reactable(striped = TRUE,
-            filterable = TRUE,
-            resizable = TRUE,
-            pageSizeOptions = 25)
+pwb_alpha_value <- psych::alpha(pwb)$total$raw_alpha
+pwb_omega_value <- psych::omega(pwb, nfactors = 1, warnings = FALSE)$omega.tot
+
+# Create the new row
+pwb_row <- data.frame(
+  subscale = "PWB",
+  alpha = pwb_alpha_value,
+  omega = pwb_omega_value
+)
+
+# If omega_results doesn't exist yet, initialize it
+if (!exists("omega_results")) {
+  omega_results <- pwb_row
+} else {
+  omega_results <- rbind(omega_results, pwb_row)
+}
+
+
+omega_results = omega_results %>% 
+  mutate(
+    subscale = trimws(subscale), 
+    subscale = case_when(
+      subscale == "self_acceptance"         ~ "PWB self_acceptance",
+      subscale == "purpose"                 ~ "PWB purpose",
+      subscale == "personal_growth"         ~ "PWB personal_growth",
+      subscale == "positive_relations"      ~ "PWB positive_relations",
+      subscale == "Autonomy"                ~ "PWB autonomy",
+      subscale == "environmental_mastery"   ~ "PWB environmental_mastery",
+      subscale == "SWLS"                    ~ "SWLS mean",
+      subscale == "PWB"                     ~ "PWB mean",
+      TRUE ~ subscale 
+    ),
+    alpha = round(alpha, 3),
+    omega = round(omega, 3))
+
+omega_results %>% 
+  reactable(
+    striped = TRUE,
+    filterable = TRUE,
+    resizable = TRUE,
+    pageSizeOptions = 25
+  )
+
+readr::write_csv(omega_results, "~/Desktop/LP2-wellbeing-prediction/Supplemental-Info/reliability/Study3_reliability_results.csv")
 
 ```
 
@@ -327,6 +372,24 @@ SWLS_subscale_results <-
                      gsub(".*`SWLS-Text`_", "", descriptions),
                      NA))
 
+omega_results = omega_results |> 
+  select(subscale,omega)
+
+r_xx_predictor <- 1
+
+# Tidy pipeline
+SWLS_subscale_results = SWLS_subscale_results %>%
+  # Join omega values by subscale/outcome
+  left_join(omega_results %>% select(subscale, omega), 
+            by = c("outcome" = "subscale")) %>%
+  # Convert correlation to numeric
+  mutate(
+    correlation = as.numeric(correlation),
+    disattenuated_correlation = correlation / sqrt(r_xx_predictor * omega)
+  ) %>%
+  # Round all numeric columns
+  mutate(across(where(is.numeric), ~ round(.x, 3))) 
+
 
 saveRDS(SWLS_subscale_results,file.path(data_dir,"models/Study3/SWLS_subscale_results.RDS"))
 ```
@@ -338,6 +401,7 @@ saveRDS(SWLS_subscale_results,file.path(data_dir,"models/Study3/SWLS_subscale_re
 SWLS_subscale_results <- SWLS_subscale_results %>%
   mutate(
     correlation = as.numeric(correlation),
+    disattenuated_correlation = as.numeric(disattenuated_correlation),
     df = as.numeric(df),
     p_value = as.numeric(p_value),
     p_value_corrected = as.numeric(p_value_corrected),
@@ -347,10 +411,10 @@ SWLS_subscale_results <- SWLS_subscale_results %>%
 
 SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 2), 
-                fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), 
-            color = "black", size = 4) +
-  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+  geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
+              fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
+          color = "black", size = 3.5) +
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -371,17 +435,16 @@ SWLS_heat
 ### Model Results 
 
 ```{r}
-SWLS_subscale_results |> 
-  mutate(across(where(is.numeric), ~ round(.x, 3))) |> 
-  DT::datatable(extensions = 'FixedColumns', 
-                filter = list(position = 'top', clear = FALSE),
-                options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+
+SWLS_subscale_results %>%
+  datatable(
+    extensions = 'FixedColumns',
+    filter = list(position = 'top', clear = FALSE),
+    options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25)
+  )
 ```
 
-
 ## Autonomy {.tabset}
-
-
 
 ```{r}
 rds_file_path_autonomy <- file.path(data_dir, "models/Study3/autonomy_subscale.RDS")
@@ -433,7 +496,6 @@ Autonomy_subscale_results$RMSE <- Autonomy_rmse$RMSE
 
 
 
-
 Autonomy_subscale_results <- 
   Autonomy_subscale_results %>%
   mutate(
@@ -443,18 +505,32 @@ Autonomy_subscale_results <-
                      NA)
   )
 
+
+Autonomy_subscale_results = Autonomy_subscale_results %>%
+  # Join omega values by subscale/outcome
+  left_join(omega_results %>% select(subscale, omega), 
+            by = c("outcome" = "subscale")) %>%
+  # Convert correlation to numeric
+  mutate(
+    correlation = as.numeric(correlation),
+    disattenuated_correlation = correlation / sqrt(r_xx_predictor * omega)
+  ) %>%
+  # Round all numeric columns
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+
 saveRDS(Autonomy_subscale_results,file.path(data_dir,"models/Study3/Autonomy_subscale_results.RDS"))
 
 ```
-
 
 
 ### Heatmaps 
 
 ```{r Autonomy-heat}
 Autonomy_subscale_results <- Autonomy_subscale_results %>%
-  mutate(
+ mutate(
     correlation = as.numeric(correlation),
+    disattenuated_correlation = as.numeric(disattenuated_correlation),
     df = as.numeric(df),
     p_value = as.numeric(p_value),
     p_value_corrected = as.numeric(p_value_corrected),
@@ -464,10 +540,10 @@ Autonomy_subscale_results <- Autonomy_subscale_results %>%
 
 Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(correlation, 2), 
-                fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")), 
-            color = "black", size = 4) +
-  geom_text(aes(label = sprintf("(%s)", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+  geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
+              fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
+          color = "black", size = 3.5) +
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -490,11 +566,14 @@ Autonomy_heat
 ```{r}
 ### Model Results 
 
-Autonomy_subscale_results |> 
-  mutate(across(where(is.numeric), ~ round(.x, 3))) |> 
-  DT::datatable(extensions = 'FixedColumns', 
-                filter = list(position = 'top', clear = FALSE),
-                options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+Autonomy_subscale_results %>%
+  # Display with datatable
+  datatable(
+    extensions = 'FixedColumns',
+    filter = list(position = 'top', clear = FALSE),
+    options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25)
+  )
+
 ```
 
 
@@ -513,6 +592,7 @@ result_list <- list(
 )
 
 autonomy_results <- process_results(result_list)
+
 
 autonomy_results<- 
   autonomy_results %>%
@@ -546,12 +626,16 @@ SWLS_results<-
 
 all_effects = rbind(autonomy_results,SWLS_results)
 
+
 all_effects |> 
   mutate_if(is.numeric, ~round(., 3)) |>
   DT::datatable(extensions = 'FixedColumns', 
                 filter = list(position = 'top', clear = FALSE),
                 options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
-all_effects = rbind(autonomy_results,SWLS_results)
+
+
+
+
 
 saveRDS(all_effects,file.path(data_dir,"models/Study3/study3_all_effects.RDS"))
 ```
@@ -671,9 +755,6 @@ SWLS_results<-
 
 ### bind 
 
-
-
-
 ```
 
 
@@ -776,7 +857,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -851,7 +932,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -926,7 +1007,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1001,7 +1082,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1151,7 +1232,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1224,7 +1305,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1308,7 +1389,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1382,7 +1463,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1456,7 +1537,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1530,7 +1611,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1604,7 +1685,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1677,7 +1758,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1750,7 +1831,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1832,7 +1913,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1906,7 +1987,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -1979,7 +2060,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -2054,7 +2135,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -2129,7 +2210,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -2204,7 +2285,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -2278,7 +2359,7 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
@@ -2353,9 +2434,10 @@ ggplot(comparison_df_shuffled, aes(x = correlation_difference)) +
   labs(title = "Distribution of Correlation Differences",
        x = "Correlation Difference",
        y = "Density") +
-  annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
+  ggplot2::annotate("text", x = Inf, y = Inf, label = paste0("% greater than zero: ", round(percentage_greater_than_zero_shuffled, 2), "%"),
            hjust = 1.1, vjust = 1.1, size = 5, color = "black") +
   plot_aes
 ```
 
 > Satisfaction with life responses are not signifcantly different from Autonomy correlations when predicting satisfaction with life scores (r = 0.624 vs. 0.207, **p** = `r p_value`)
+
