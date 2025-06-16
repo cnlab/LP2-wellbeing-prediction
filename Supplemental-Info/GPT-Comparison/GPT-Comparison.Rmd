@@ -42,6 +42,11 @@ autonomy = autonomy |>
                 str_remove("-3.5-turbo-1106$")) |> 
   mutate(PWB_gpt = rowMeans(across(11:17), na.rm = TRUE)) 
 
+autonomy = autonomy |> 
+  rename(Autonomy_gpt = gpt)
+
+#write_csv(autonomy,'~/Desktop/LP2-wellbeing-prediction/data/GPT/WBP-Autonomy-Text-GPT-gpt-3.5-turbo-1106-0-scores.csv')
+
 swls = read_csv('~/Desktop/LP2-wellbeing-prediction/data/GPT/WBP-SWLS-Text-GPT-gpt-3.5-turbo-1106-0-scores.csv')
 
 swls = swls |> 
@@ -50,6 +55,11 @@ swls = swls |>
                 str_remove("^SWLS_") |> 
                 str_remove("-3.5-turbo-1106$")) |> 
   mutate(PWB_gpt = rowMeans(across(11:17), na.rm = TRUE))
+
+swls = swls |> 
+  rename(SWLS_gpt = gpt)
+
+#write_csv(swls,'~/Desktop/LP2-wellbeing-prediction/data/GPT/WBP-SWLS-Text-GPT-gpt-3.5-turbo-1106-0-scores.csv')
 ```
 
 ```{r}
@@ -406,14 +416,16 @@ autonomy = autonomy |>
                 str_remove("-4")) |> 
   mutate(PWB_gpt = rowMeans(across(11:17), na.rm = TRUE)) 
 
-swls = read_csv('~/Desktop/LP2-wellbeing-prediction/data/GPT/WBP-SWLS-Text-GPT-gpt-4-0-scores.csv')
 
+
+swls = read_csv('~/Desktop/LP2-wellbeing-prediction/data/GPT/WBP-SWLS-Text-GPT-gpt-4-0-scores.csv')
 swls = swls |> 
   select(-ends_with("-Text")) |> # remove text columns
   rename_with(~ .x |> 
                 str_remove("^SWLS_") |> 
                 str_remove("-4")) |> 
   mutate(PWB_gpt = rowMeans(across(11:17), na.rm = TRUE)) 
+
 ```
 
 ## Autonomy {.tabset}

@@ -80,7 +80,7 @@ plot_aes <- theme_classic() +
 
 # Study 1 {.tabset}
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 embeddings = readRDS("~/Desktop/LP2-wellbeing-prediction/embeddings/Study1_all_embeddings.rds")
 
 study1_bx = read_csv("~/Desktop/LP2-wellbeing-prediction/data/WBP_Study1_Cleaned.csv")
@@ -905,7 +905,7 @@ combined_plot_with_title
 
 # Study 2 {.tabset}
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
 df = read.csv(file.path(data_dir,"data/osf/data/WBP_Study2_Behavioral_Cleaned.csv"))
@@ -975,19 +975,7 @@ study2 <- study2 %>%
   
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
 embeddings <- readRDS(file.path(data_dir,"embeddings/wellbeing-prediction-embeddings.rds"))
-
-### get text descriptives 
-
-textDescriptives(
-  study2[10:11],
-  compute_total = F,
-  entropy_unit = "log2",
-  na.rm = TRUE,
-  locale = "en_US"
-) 
-
 ```
-
 
 ## Satifaction with life {.tabset}
 
@@ -2494,11 +2482,9 @@ combined_plot_with_title <- annotate_figure(
 combined_plot_with_title
 ```
 
-
-
 # Study 3
 
-```{r SWL-function}
+```{r eval=FALSE, include=FALSE}
 
 generate_projection_plot <- function(x, x_label, word_column, embedding_name, model_dir = "~/Desktop/LP2-wellbeing-prediction/models/Study3/SWL/SDP") {
   
@@ -2632,18 +2618,6 @@ study3 <- study3 %>%
   left_join(cleaned_autonomy, by = "pID") %>%
   left_join(cleaned_swls,     by = "pID")
 ```
-
-```{r study3-text-descriptives}
-
-study3_text_descp = textDescriptives(
-  study3[11:12],
-  compute_total = F,
-  entropy_unit = "log2",
-  na.rm = TRUE,
-  locale = "en_US"
-) 
-```
-
 
 
 ### SWLS 
@@ -4146,7 +4120,7 @@ liwc_summary <- liwc_long %>%
 # Get top 5 categories per group
 top_liwc <- liwc_summary %>%
   group_by(study, type, high_low) %>%
-  slice_max(mean_value, n = 5, with_ties = FALSE) %>%
+  slice_max(mean_value, n = 10, with_ties = FALSE) %>%
   ungroup()
 
 # Plot
