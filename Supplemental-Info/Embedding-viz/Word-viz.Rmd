@@ -1,0 +1,4167 @@
+---
+title: "Word Embedding Visualization"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "SDP-figs/fig_",dpi = 600)
+options(scipen=999)
+
+```
+
+
+```{r load packages, include=FALSE}
+if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
+library(pacman)
+set.seed(123)
+options(ggrepel.max.overlaps = Inf)
+pacman::p_load(
+  tidyverse, rlang, plotrix, ggpubr, caret, broom, kableExtra,
+  reactable, knitr, DT, stringr, ggwordcloud, Metrics, scales,
+  rsample, purrr, psych, apaTables, tibble, tm, ggrepel,
+  dplyr, SnowballC, tidytext
+)
+```
+
+```{r eval=FALSE, message=TRUE, warning=TRUE, include=FALSE}
+
+#install.packages("devtools")
+#devtools::install_version("text", version = "1.2.1", repos = "http://cran.us.r-project.org", type = "source")
+
+#### as of 8/29 need to exclusively use version 1.2.1 to get around a fatal R issue
+#install.packages("text")
+#devtools::install_github("oscarkjell/text")
+library(text)
+textrpp_install(prompt = F)
+textrpp_initialize()
+
+```
+
+# Visualize word embeddings
+
+```{r prep-SDP}
+
+# fisher for multiple p-values
+fishers_method <- function(p_values) {
+  if (all(is.na(p_values))) {
+    return(NA)  # Return NA if all p-values are NA
+  } else {
+    p_values <- na.omit(p_values)  # Remove NA values
+    test_statistic <- -2 * sum(log(p_values))
+    combined_p_value <- pchisq(test_statistic, df = 2 * length(p_values), lower.tail = FALSE)
+    return(combined_p_value)
+  }
+}
+
+plot_aes <- theme_classic() +
+  theme(
+    legend.position = "None",
+    text = element_text(family = "Futura Medium"),
+    plot.title = element_text(hjust = 0.5),
+    axis.title.y = element_blank(),     # removes only y-axis title
+    axis.text = element_blank(),        # removes axis tick labels
+    axis.ticks = element_blank()        # removes axis tick marks
+  )
+```
+
+# Study 1 {.tabset}
+
+```{r}
+embeddings = readRDS("~/Desktop/LP2-wellbeing-prediction/embeddings/Study1_all_embeddings.rds")
+
+study1_bx = read_csv("~/Desktop/LP2-wellbeing-prediction/data/WBP_Study1_Cleaned.csv")
+# pull the text off of box
+study1_text = read_csv('/Users/sm9518/Library/CloudStorage/Box-Box/LP2/within_person_intervention/data_prediction/surveys_scored/LP2_transcriptions_behavioral.csv')
+
+autonomy_vars <- names(study1_text) %>% 
+  str_subset("autonomy_\\d+.*Transcription")
+
+positive_affect_vars <- names(study1_text) %>% 
+  str_subset("positive_affect_\\d+.*Transcription")
+
+# Combine autonomy responses into one column called `autonomy_text`
+study1_text <- study1_text %>%
+  mutate(autonomy_text = apply(select(., all_of(autonomy_vars)), 1, function(x) {
+    str_c(na.omit(x), collapse = " ")  # collapse non-NA values with a space
+  })) %>% 
+  mutate(positive_affect_text = apply(select(., all_of(positive_affect_vars)), 1, function(x) {
+    str_c(na.omit(x), collapse = " ")
+  })) |> 
+  select(pID, autonomy_text, positive_affect_text)
+
+study1 = study1_bx |> 
+  select(!contains("post_")) |> 
+  left_join(study1_text, by = "pID") 
+
+
+# have to hard-cose the wordtypes for this to work 
+embeddings$word_types$`Q3..autonomy_3..Transcription` = embeddings$word_types
+embeddings$word_types$`Q2..positive_affect_2..Transcription` = embeddings$word_types
+```
+
+## Autonomy {.tabset}
+
+```{r study1-autonomy-func}
+generate_projection_plot <- function(
+  df, x, x_label, word_column, embedding_name, 
+  model_dir = "~/Desktop/LP2-wellbeing-prediction/models/Study1/SDP/autonomy"
+) {
+  x_label_clean <- gsub(" ", "_", x_label)
+  file_path <- file.path(model_dir, paste0(x_label_clean, "_autonomy_plot.rds"))
+  
+  if (!file.exists(file_path)) {
+    
+    # Validate input
+    if (is.null(df[[word_column]])) stop(paste("Column", word_column, "not found in the dataframe"))
+    if (is.null(embeddings$texts[[embedding_name]])) stop("Embedding text not found")
+    if (is.null(embeddings$word_types[[embedding_name]])) stop("Embedding word types not found")
+    
+    projection <- textProjection(
+      words = study1[[word_column]],
+      word_embeddings = embeddings$texts[[embedding_name]],
+      word_types_embeddings = embeddings$word_types[[embedding_name]],
+      x = x,
+      min_freq_words_test = 5,
+      Npermutations = 10000,
+      n_per_split = 5000,
+      seed = 42
+    )
+    
+    projection$word_data$stem <- c(
+      projection$word_data$words[1:3],
+      stemDocument(projection$word_data$words[4:nrow(projection$word_data)], language = "english")
+    )
+    
+    word_data_stemmed <- projection$word_data %>%
+      group_by(stem) %>%
+      reframe(
+        sum_n = sum(n, na.rm = TRUE),
+        mean_dot_x = mean(dot.x, na.rm = TRUE),
+        fisher_p_values_dot_x = fishers_method(p_values_dot.x),
+        sum_n_g1.x = sum(n_g1.x, na.rm = TRUE),
+        sum_n_g2.x = sum(n_g2.x, na.rm = TRUE),
+        sum_n_percent = sum(n.percent, na.rm = TRUE)
+      )
+    
+    merged_df <- projection$word_data %>%
+      left_join(word_data_stemmed, by = "stem")
+    
+    projection$word_data <- merged_df %>%
+      filter(!duplicated(stem))
+    
+    projection$word_data$n <- projection$word_data$sum_n
+    projection$word_data$dot.x <- projection$word_data$mean_dot_x
+    projection$word_data$p_values_dot.x <- projection$word_data$fisher_p_values_dot_x
+    projection$word_data$n_g1.x <- projection$word_data$sum_n_g1.x
+    projection$word_data$n_g2.x <- projection$word_data$sum_n_g2.x
+    projection$word_data$n.percent <- projection$word_data$sum_n_percent
+    
+    projection_plot <- textPlot(
+      word_data = projection,
+      k_n_words_to_test = TRUE,
+      min_freq_words_test = 5,
+      min_freq_words_plot = 5,
+      plot_n_words_square = 0,
+      plot_n_words_p = 30,
+      plot_n_word_extreme = 0,
+      plot_n_word_frequency = 0,
+      plot_n_words_middle = 0,
+      y_axes = FALSE,
+      p_alpha = 0.05,
+      title_top = " ",
+      x_axes_label = " ",
+      y_axes_label = NULL,
+      bivariate_color_codes = c("#398CF9", "#60A1F7", "#5dc688",
+                                "red4", "blue2", "green4",
+                                "#FF0000", "#EA7467", "#85DB8E"),
+      word_size_range = c(4, 14),
+      p_adjust_method = "fdr",
+      scale_y_axes_lim = NULL,
+      n_contrast_group_color = "white",
+      position_jitter_hight = 0.1,
+      position_jitter_width = 0.5,
+      arrow_transparency = 0,
+      points_without_words_alpha = 0,
+      remove_words = c(".", "-",",","`",",","(",")")
+    )
+    
+    dir.create(dirname(file_path), showWarnings = FALSE, recursive = TRUE)
+    saveRDS(projection_plot, file_path)
+  } else {
+    projection_plot <- readRDS(file_path)
+  }
+  
+  return(projection_plot)
+}
+
+```
+
+### SWLS
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study1$pre_SWLS_mean,
+  x_label = "pre_SWLS_mean",           
+  word_column = "autonomy_text",
+  embedding_name = "Q3..autonomy_3..Transcription",
+  df = study1
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_SWLS = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Satisfaction With Life")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_SWLS
+```
+
+### Self-Acceptance
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study1$pre_PWB_self_acceptance,
+  x_label = "pre_PWB_self_acceptance",           
+  word_column = "autonomy_text",
+  embedding_name = "Q3..autonomy_3..Transcription",
+  df = study1
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_accpt = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Self-Acceptance")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_accpt
+```
+
+
+### Autonomy
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study1$pre_PWB_autonomy,
+  x_label = "pre_PWB_autonomy",           
+  word_column = "autonomy_text",
+  embedding_name = "Q3..autonomy_3..Transcription",
+  df = study1
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_autonomy = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Autonomy")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_autonomy
+```
+
+### PWB Mean
+
+```{r}
+
+projection_plot <- generate_projection_plot(
+  x = study1$pre_PWB_mean,
+  x_label = "pre_PWB_mean",           
+  word_column = "autonomy_text",
+  embedding_name = "Q3..autonomy_3..Transcription",
+  df = study1
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_pwb = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Psychological Well-being")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text = element_blank(),      # removes axis tick labels
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_pwb
+```
+
+### Mastery
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study1$pre_PWB_environmental_mastery,
+  x_label = "pre_PWB_environmental_mastery",           
+  word_column = "autonomy_text",
+  embedding_name = "Q3..autonomy_3..Transcription",
+  df = study1
+)
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_mastery = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Environmental Mastery")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.title = element_blank(),     # removes axis titles
+    axis.text = element_blank(),      # removes axis tick labels
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_mastery
+```
+
+## Positive Affect {.tabset}
+
+```{r study1-positive-affect-func}
+generate_projection_plot <- function(
+  df, x, x_label, word_column, embedding_name, 
+  model_dir = "~/Desktop/LP2-wellbeing-prediction/models/Study1/SDP/pos_affect"
+) {
+  x_label_clean <- gsub(" ", "_", x_label)
+  file_path <- file.path(model_dir, paste0(x_label_clean, "_pos_affect_plot.rds"))
+  
+  if (!file.exists(file_path)) {
+    
+    # Validate input
+    if (is.null(df[[word_column]])) stop(paste("Column", word_column, "not found in the dataframe"))
+    if (is.null(embeddings$texts[[embedding_name]])) stop("Embedding text not found")
+    if (is.null(embeddings$word_types[[embedding_name]])) stop("Embedding word types not found")
+    
+    projection <- textProjection(
+      words = study1[[word_column]],
+      word_embeddings = embeddings$texts[[embedding_name]],
+      word_types_embeddings = embeddings$word_types[[embedding_name]],
+      x = x,
+      min_freq_words_test = 5,
+      Npermutations = 10000,
+      n_per_split = 5000,
+      seed = 42
+    )
+    
+    projection$word_data$stem <- c(
+      projection$word_data$words[1:3],
+      stemDocument(projection$word_data$words[4:nrow(projection$word_data)], language = "english")
+    )
+    
+    word_data_stemmed <- projection$word_data %>%
+      group_by(stem) %>%
+      reframe(
+        sum_n = sum(n, na.rm = TRUE),
+        mean_dot_x = mean(dot.x, na.rm = TRUE),
+        fisher_p_values_dot_x = fishers_method(p_values_dot.x),
+        sum_n_g1.x = sum(n_g1.x, na.rm = TRUE),
+        sum_n_g2.x = sum(n_g2.x, na.rm = TRUE),
+        sum_n_percent = sum(n.percent, na.rm = TRUE)
+      )
+    
+    merged_df <- projection$word_data %>%
+      left_join(word_data_stemmed, by = "stem")
+    
+    projection$word_data <- merged_df %>%
+      filter(!duplicated(stem))
+    
+    projection$word_data$n <- projection$word_data$sum_n
+    projection$word_data$dot.x <- projection$word_data$mean_dot_x
+    projection$word_data$p_values_dot.x <- projection$word_data$fisher_p_values_dot_x
+    projection$word_data$n_g1.x <- projection$word_data$sum_n_g1.x
+    projection$word_data$n_g2.x <- projection$word_data$sum_n_g2.x
+    projection$word_data$n.percent <- projection$word_data$sum_n_percent
+    
+    projection_plot <- textPlot(
+      word_data = projection,
+      k_n_words_to_test = TRUE,
+      min_freq_words_test = 5,
+      min_freq_words_plot = 5,
+      plot_n_words_square = 0,
+      plot_n_words_p = 30,
+      plot_n_word_extreme = 0,
+      plot_n_word_frequency = 0,
+      plot_n_words_middle = 0,
+      y_axes = FALSE,
+      p_alpha = 0.05,
+      title_top = " ",
+      x_axes_label = " ",
+      y_axes_label = NULL,
+      bivariate_color_codes = c("#398CF9", "#60A1F7", "#5dc688",
+                                "red4", "blue2", "green4",
+                                "#FF0000", "#EA7467", "#85DB8E"),
+      word_size_range = c(4, 14),
+      p_adjust_method = "fdr",
+      scale_y_axes_lim = NULL,
+      n_contrast_group_color = "white",
+      position_jitter_hight = 0.1,
+      position_jitter_width = 0.5,
+      arrow_transparency = 0,
+      points_without_words_alpha = 0,
+      remove_words = c(".", "-",",","`",",","(",")")
+    )
+    
+    dir.create(dirname(file_path), showWarnings = FALSE, recursive = TRUE)
+    saveRDS(projection_plot, file_path)
+  } else {
+    projection_plot <- readRDS(file_path)
+  }
+  
+  return(projection_plot)
+}
+```
+
+### SWLS 
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study1$pre_SWLS_mean,
+  x_label = "pre_SWLS_mean",           
+  word_column = "positive_affect_text",
+  embedding_name = "Q2..positive_affect_2..Transcription",
+  df = study1
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+pos_affect_SWLS = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "purple4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Satisfaction With Life")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+pos_affect_SWLS
+```
+
+### PWB
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study1$pre_PWB_mean,
+  x_label = "pre_PWB_mean",           
+  word_column = "positive_affect_text",
+  embedding_name = "Q2..positive_affect_2..Transcription",
+  df = study1
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+pos_affect_pwb = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "purple4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+   xlab(substitute(paste(bold("Low vs. High Psychological Well-being")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+pos_affect_pwb
+```
+
+## Combined Plots
+
+```{r study1-sdp, fig.height=9, fig.width=18}
+
+blank <- ggplot() + theme_void()
+
+
+top_row <- ggarrange(
+  autonomy_SWLS, autonomy_accpt, autonomy_autonomy, autonomy_pwb,
+  ncol = 4,
+  labels = c("a", "b", "c", "d"),
+  label.x = 0.08,  # <-- Move label away from edge
+  label.y = 0.95,
+  font.label = list(size = 18, family = "Futura Medium", face = "bold"),
+  common.legend = TRUE,
+  legend = "none"
+)
+
+bottom_row <- ggarrange(
+  blank, autonomy_mastery, pos_affect_SWLS, pos_affect_pwb, blank,
+  ncol = 5,
+  widths = c(0.25, 1, 1, 1, 0.25),
+  labels = c("", "e", "f", "g", ""),
+  label.x = 0.08,  # <-- Same here
+  label.y = 0.95,
+  font.label = list(size = 18, family = "Futura Medium", face = "bold"),
+  common.legend = F,
+  legend = "bottom"
+)
+
+combined_plot <- ggarrange(
+  top_row,
+  bottom_row,
+  ncol = 1,
+  heights = c(1, 1),
+  legend = "bottom"
+)
+
+# Add title
+combined_plot_with_title <- annotate_figure(
+  combined_plot,
+  top = text_grob(
+    "Study 1 Supervised Dimension Projection",
+    color = "black",
+    face = "bold",
+    size = 20,
+    family = "Futura Medium"
+  )
+)
+
+# Show plot
+combined_plot_with_title
+```
+
+# Study 2 {.tabset}
+
+```{r}
+
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
+df = read.csv(file.path(data_dir,"data/osf/data/WBP_Study2_Behavioral_Cleaned.csv"))
+
+
+df = df %>% 
+  select(pID, score, measure) %>% 
+   spread(key = measure, value = score)
+
+###prep the text data 
+text = read_csv('/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data_text/WBP_Study2_wellbeing-prediction-text-long.csv')
+
+
+text_grouped <- text %>%
+  group_by(pID, prompt) %>%
+  summarise(
+    text_combined = paste(text, collapse = " ")
+  ) %>%
+  ungroup()
+
+# Reshape data from long to wide format
+text_embed <- text_grouped %>%
+  spread(key = prompt, value = text_combined)
+
+
+text_embed_pids <- unique(text_embed$pID)
+
+# Filter df to include only rows with pID in text_embed_pids
+study2 <- df %>%
+  filter(pID %in% text_embed_pids) |> 
+  left_join(text_embed, by = "pID") 
+
+
+# Function to clean a single text column
+clean_text_column <- function(data, text_col, id_col = "pID", output_col) {
+  text_cleaning_tokens <- data[, c(text_col, id_col)] %>%
+    tidytext::unnest_tokens(word, !!sym(text_col))
+
+  # Remove one-character words and stop words
+  text_cleaning_tokens <- text_cleaning_tokens %>%
+    filter(nchar(word) > 1) %>%
+    anti_join(stop_words[stop_words$lexicon == "snowball", ], by = "word") %>%
+    filter(word != "")
+
+  # Spread and recombine
+  tokens <- text_cleaning_tokens %>%
+    group_by(!!sym(id_col)) %>%
+    mutate(ind = row_number()) %>%
+    tidyr::spread(key = ind, value = word)
+
+  tokens[is.na(tokens)] <- ""
+  tokens <- tidyr::unite(tokens, !!output_col, -!!sym(id_col), sep = " ")
+  tokens[[output_col]] <- trimws(tokens[[output_col]])
+
+  return(tokens)
+}
+
+# Clean both text columns
+cleaned_autonomy <- clean_text_column(study2, "Autonomy", output_col = "Autonomy-Cleaned")
+cleaned_swls     <- clean_text_column(study2, "SWLS", output_col = "SWLS-Cleaned")
+
+# Merge cleaned columns back into the original dataframe
+study2 <- study2 %>%
+  left_join(cleaned_autonomy, by = "pID") %>%
+  left_join(cleaned_swls,     by = "pID")
+
+  
+data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
+embeddings <- readRDS(file.path(data_dir,"embeddings/wellbeing-prediction-embeddings.rds"))
+
+### get text descriptives 
+
+textDescriptives(
+  study2[10:11],
+  compute_total = F,
+  entropy_unit = "log2",
+  na.rm = TRUE,
+  locale = "en_US"
+) 
+
+```
+
+
+## Satifaction with life {.tabset}
+
+```{r study 2 SWL-function}
+
+generate_projection_plot <- function(x, x_label, word_column, embedding_name, model_dir = "~/Desktop/LP2-wellbeing-prediction/models/Study2/SDP/SWL") {
+  
+  # Sanitize label for use in file paths
+   x_label_clean <- gsub(" ", "_", x_label)
+  file_path <- file.path(model_dir, paste0(x_label_clean, "_SWLS_plot.rds"))
+  
+  if (!file.exists(file_path)) {
+    
+    projection <- textProjection(
+      words = study2[[word_column]],
+      word_embeddings = embeddings$texts[[embedding_name]],
+      word_types_embeddings = embeddings$word_types[[embedding_name]],
+      x = x,
+      min_freq_words_test = 5,
+      Npermutations = 10000,
+      n_per_split = 5000,
+      seed = 42
+    )
+    
+    projection$word_data$stem <- c(
+      projection$word_data$words[1:3],
+      stemDocument(projection$word_data$words[4:nrow(projection$word_data)], language = "english")
+    )
+    
+    word_data_stemmed <- projection$word_data %>%
+      group_by(stem) %>%
+      reframe(
+        sum_n = sum(n, na.rm = TRUE),
+        mean_dot_x = mean(dot.x, na.rm = TRUE),
+        fisher_p_values_dot_x = fishers_method(p_values_dot.x),
+        sum_n_g1.x = sum(n_g1.x, na.rm = TRUE),
+        sum_n_g2.x = sum(n_g2.x, na.rm = TRUE),
+        sum_n_percent = sum(n.percent, na.rm = TRUE)
+      )
+    
+    merged_df <- projection$word_data %>%
+      left_join(word_data_stemmed, by = "stem")
+    
+    projection$word_data <- merged_df %>%
+      filter(!duplicated(stem))
+    
+    projection$word_data$n <- projection$word_data$sum_n
+    projection$word_data$dot.x <- projection$word_data$mean_dot_x
+    projection$word_data$p_values_dot.x <- projection$word_data$fisher_p_values_dot_x
+    projection$word_data$n_g1.x <- projection$word_data$sum_n_g1.x
+    projection$word_data$n_g2.x <- projection$word_data$sum_n_g2.x
+    projection$word_data$n.percent <- projection$word_data$sum_n_percent
+    
+    projection_plot <- textPlot(
+      word_data = projection,
+      k_n_words_to_test = TRUE,
+      min_freq_words_test = 5,
+      min_freq_words_plot = 5,
+      plot_n_words_square = 0,
+      plot_n_words_p = 30,
+      plot_n_word_extreme = 0,
+      plot_n_word_frequency = 0,
+      plot_n_words_middle = 0,
+      y_axes = FALSE,
+      p_alpha = 0.05,
+      title_top = " ",
+      x_axes_label = " ",
+      y_axes_label = NULL,
+      bivariate_color_codes = c("#398CF9", "#60A1F7", "#5dc688",
+                                "red", "blue2", "dodgerblue1",
+                                "#FF0000", "#EA7467", "#85DB8E"),
+      word_size_range = c(4, 14),
+      p_adjust_method = "fdr",
+      scale_y_axes_lim = NULL,
+      n_contrast_group_color = "white",
+      position_jitter_hight = 0.1,
+      position_jitter_width = 0.5,
+      arrow_transparency = 0,
+      points_without_words_alpha = 0,
+      remove_words = c(".", "-",",","`",",","(",")")
+    )
+    
+    dir.create(dirname(file_path), showWarnings = FALSE, recursive = TRUE)
+    saveRDS(projection_plot, file_path)
+  } else {
+    projection_plot <- readRDS(file_path)
+  }
+  
+  return(projection_plot)
+}
+
+```
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`SWLS mean`,
+  x_label = "SWLS mean",           
+  word_column = "SWLS-Cleaned",
+  embedding_name = "SWLS"
+)
+```
+
+### SWLS 
+
+```{r}
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+  slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+#plot
+SWLS_SWLS = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Satisfaction With Life")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_SWLS
+
+SWLS_SWLS_words = sig_high_low |> 
+  select(words,n,mean_dot_x,fisher_p_values_dot_x,with_without) |> 
+  rename(high_low = with_without)
+
+write.csv(SWLS_SWLS_words, "study2_SWLS_SWLS_in_embedding_space.csv")
+
+```
+
+### Self-Acceptance
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB self_acceptance`,
+  x_label = "PWB self_acceptance",           
+  word_column = "SWLS-Cleaned",
+  embedding_name = "SWLS"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+  slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_accpt = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Self-Acceptance")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_accpt
+```
+
+### Purpose
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB purpose`,
+  x_label = "PWB purpose",           
+  word_column = "SWLS-Cleaned",
+  embedding_name = "SWLS"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_purpose = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Purpose in Life")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_purpose
+```
+
+### Positive relations
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB positive_relations`,
+  x_label = "PWB positive_relations",           
+  word_column = "SWLS-Cleaned",
+  embedding_name = "SWLS"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_relations = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Positive Relations")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_relations
+```
+
+### Personal Growth
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB personal_growth`,
+  x_label = "PWB personal_growth",           
+  word_column = "SWLS-Cleaned",
+  embedding_name = "SWLS"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_growth = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Personal Growth")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_growth
+```
+
+### Autonomy
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB autonomy`,
+  x_label = "PWB autonomy",           
+  word_column = "SWLS-Cleaned",
+  embedding_name = "SWLS"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_autonomy = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Autonomy")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_autonomy
+```
+
+### PWB Mean
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB mean`,
+  x_label = "PWB mean",           
+  word_column = "SWLS-Cleaned",
+  embedding_name = "SWLS"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_pwb = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Psychological Well-being")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text = element_blank(),      # removes axis tick labels
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_pwb
+```
+
+### Mastery
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB environmental_mastery`,
+  x_label = "PWB environmental_mastery",           
+  word_column = "SWLS-Cleaned",
+  embedding_name = "SWLS"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+  slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_mastery = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Environmental Mastery")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.title = element_blank(),     # removes axis titles
+    axis.text = element_blank(),      # removes axis tick labels
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_mastery
+```
+### Study 2 SWL Prompt SDP
+
+```{r study2-swl-sdp, fig.height=9, fig.width=18}
+
+plot_list <- list(SWLS_SWLS, SWLS_accpt, SWLS_purpose, SWLS_relations,
+                   SWLS_growth, SWLS_autonomy, SWLS_pwb, SWLS_mastery)
+
+combined_plot <- ggarrange(plotlist = plot_list,
+                           ncol = 4, nrow = ceiling(length(plot_list)/4),
+                           labels = letters[1:length(plot_list)],
+                           label.x = 0.05,   # optional: adjust label position
+                           label.y = 0.95,
+                           common.legend = TRUE,
+                           legend = "bottom",
+                           font.label = list(size = 18, family = "Futura Medium", face = "bold"))
+
+combined_plot_with_title <- annotate_figure(
+  combined_plot,
+  top = text_grob(
+    "Satisfaction with Life Prompt Supervised Dimension Projection", 
+    color = "black", 
+    face = "bold", 
+    size = 20, 
+    family = "Futura Medium"
+  )
+)
+
+combined_plot_with_title
+```
+
+## Autonomy {.tabset}
+
+```{r}
+generate_projection_plot <- function(x, x_label, word_column, embedding_name, model_dir = "~/Desktop/LP2-wellbeing-prediction/models/Study2/SDP/autonomy") {
+  
+  # Sanitize label for use in file paths
+   x_label_clean <- gsub(" ", "_", x_label)
+  file_path <- file.path(model_dir, paste0(x_label_clean, "_autonomy_plot.rds"))
+  
+  if (!file.exists(file_path)) {
+    
+    projection <- textProjection(
+      words = study2[[word_column]],
+      word_embeddings = embeddings$texts[[embedding_name]],
+      word_types_embeddings = embeddings$word_types[[embedding_name]],
+      x = x,
+      min_freq_words_test = 5,
+      Npermutations = 10000,
+      n_per_split = 5000,
+      seed = 42
+    )
+    
+    projection$word_data$stem <- c(
+      projection$word_data$words[1:3],
+      stemDocument(projection$word_data$words[4:nrow(projection$word_data)], language = "english")
+    )
+    
+    word_data_stemmed <- projection$word_data %>%
+      group_by(stem) %>%
+      reframe(
+        sum_n = sum(n, na.rm = TRUE),
+        mean_dot_x = mean(dot.x, na.rm = TRUE),
+        fisher_p_values_dot_x = fishers_method(p_values_dot.x),
+        sum_n_g1.x = sum(n_g1.x, na.rm = TRUE),
+        sum_n_g2.x = sum(n_g2.x, na.rm = TRUE),
+        sum_n_percent = sum(n.percent, na.rm = TRUE)
+      )
+    
+    merged_df <- projection$word_data %>%
+      left_join(word_data_stemmed, by = "stem")
+    
+    projection$word_data <- merged_df %>%
+      filter(!duplicated(stem))
+    
+    projection$word_data$n <- projection$word_data$sum_n
+    projection$word_data$dot.x <- projection$word_data$mean_dot_x
+    projection$word_data$p_values_dot.x <- projection$word_data$fisher_p_values_dot_x
+    projection$word_data$n_g1.x <- projection$word_data$sum_n_g1.x
+    projection$word_data$n_g2.x <- projection$word_data$sum_n_g2.x
+    projection$word_data$n.percent <- projection$word_data$sum_n_percent
+    
+    projection_plot <- textPlot(
+      word_data = projection,
+      k_n_words_to_test = TRUE,
+      min_freq_words_test = 5,
+      min_freq_words_plot = 5,
+      plot_n_words_square = 0,
+      plot_n_words_p = 30,
+      plot_n_word_extreme = 0,
+      plot_n_word_frequency = 0,
+      plot_n_words_middle = 0,
+      y_axes = FALSE,
+      p_alpha = 0.05,
+      title_top = " ",
+      x_axes_label = " ",
+      y_axes_label = NULL,
+      bivariate_color_codes = c("#398CF9", "#60A1F7", "#5dc688",
+                                "red4", "blue2", "green4",
+                                "#FF0000", "#EA7467", "#85DB8E"),
+      word_size_range = c(4, 14),
+      p_adjust_method = "fdr",
+      scale_y_axes_lim = NULL,
+      n_contrast_group_color = "white",
+      position_jitter_hight = 0.1,
+      position_jitter_width = 0.5,
+      arrow_transparency = 0,
+      points_without_words_alpha = 0,
+      remove_words = c(".", "-",",","`",",","(",")")
+    )
+    
+    dir.create(dirname(file_path), showWarnings = FALSE, recursive = TRUE)
+    saveRDS(projection_plot, file_path)
+  } else {
+    projection_plot <- readRDS(file_path)
+  }
+  
+  return(projection_plot)
+}
+
+```
+
+### SWLS 
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`SWLS mean`,
+  x_label = "SWLS mean",           
+  word_column = "Autonomy-Cleaned",
+  embedding_name = "Autonomy"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_SWLS = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Satisfaction With Life")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_SWLS
+```
+
+### Self-Acceptance
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB self_acceptance`,
+  x_label = "PWB self_acceptance",           
+  word_column = "Autonomy-Cleaned",
+  embedding_name = "Autonomy"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_accpt = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Self-Acceptance")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_accpt
+```
+
+### Purpose
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB purpose`,
+  x_label = "PWB purpose",           
+  word_column = "Autonomy-Cleaned",
+  embedding_name = "Autonomy"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_purpose = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Purpose in Life")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_purpose
+```
+
+### Positive relations
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB positive_relations`,
+  x_label = "PWB positive_relations",           
+  word_column = "Autonomy-Cleaned",
+  embedding_name = "Autonomy"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_relations = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Positive Relations")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_relations
+```
+
+### Personal Growth
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB personal_growth`,
+  x_label = "PWB personal_growth",           
+  word_column = "Autonomy-Cleaned",
+  embedding_name = "Autonomy"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_growth = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Personal Growth")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_growth
+```
+
+### Autonomy
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB autonomy`,
+  x_label = "PWB autonomy",           
+  word_column = "Autonomy-Cleaned",
+  embedding_name = "Autonomy"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_autonomy = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Autonomy")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_autonomy
+
+autonomy_autonomy_words = sig_high_low |> 
+  select(words,n,mean_dot_x,fisher_p_values_dot_x,with_without) |> 
+  rename(high_low = with_without)
+
+write.csv(autonomy_autonomy_words, "study2_autonomy_autonomy_in_embedding_space.csv")
+```
+
+### PWB Mean
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB mean`,
+  x_label = "PWB mean",           
+  word_column = "Autonomy-Cleaned",
+  embedding_name = "Autonomy"
+)
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_pwb = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Psychological Well-being")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text = element_blank(),      # removes axis tick labels
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_pwb
+```
+
+### Mastery
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study2$`PWB environmental_mastery`,
+  x_label = "PWB environmental_mastery",           
+  word_column = "Autonomy-Cleaned",
+  embedding_name = "Autonomy"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_mastery = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Environmental Mastery")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.title = element_blank(),     # removes axis titles
+    axis.text = element_blank(),      # removes axis tick labels
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_mastery
+```
+
+### Study 2 Autonomy Prompt SDP 
+
+```{r study2-autonomy-sdp, fig.height=9, fig.width=18}
+
+plot_list <- list(autonomy_SWLS, autonomy_accpt, autonomy_purpose, autonomy_relations,
+                   autonomy_growth, autonomy_autonomy, autonomy_pwb, autonomy_mastery)
+
+combined_plot <- ggarrange(plotlist = plot_list,
+                           ncol = 4, nrow = ceiling(length(plot_list)/4),
+                           labels = letters[1:length(plot_list)],
+                           label.x = 0.05,   # optional: adjust label position
+                           label.y = 0.95,
+                           common.legend = TRUE,
+                           legend = "bottom",
+                           font.label = list(size = 18, family = "Futura Medium", face = "bold"))
+
+combined_plot_with_title <- annotate_figure(
+  combined_plot,
+  top = text_grob(
+    "Autonomy Prompt Supervised Dimension Projection", 
+    color = "black", 
+    face = "bold", 
+    size = 20, 
+    family = "Futura Medium"
+  )
+)
+
+combined_plot_with_title
+```
+
+### Study 2 SDP 
+
+```{r study2-swl-autonomy-sdp, fig.height=10, fig.width=8}
+
+plot_list <- list(autonomy_autonomy, SWLS_SWLS)
+
+combined_plot <- ggarrange(plotlist = plot_list,
+                           ncol = 1, nrow = 2,
+                           labels = letters[1:length(plot_list)],
+                           label.x = 0.05,   # optional: adjust label position
+                           label.y = 0.95,
+                           common.legend = TRUE,
+                           legend = "bottom",
+                           font.label = list(size = 18, family = "Futura Medium", face = "bold"))
+
+combined_plot_with_title <- annotate_figure(
+  combined_plot,
+  top = text_grob(
+    "Study 2 Supervised Dimension Projection", 
+    color = "black", 
+    face = "bold", 
+    size = 20, 
+    family = "Futura Medium"
+  )
+)
+
+combined_plot_with_title
+```
+
+
+
+# Study 3
+
+```{r SWL-function}
+
+generate_projection_plot <- function(x, x_label, word_column, embedding_name, model_dir = "~/Desktop/LP2-wellbeing-prediction/models/Study3/SWL/SDP") {
+  
+  # Sanitize label for use in file paths
+   x_label_clean <- gsub(" ", "_", x_label)
+  file_path <- file.path(model_dir, paste0(x_label_clean, "_SWLS_plot.rds"))
+  
+  if (!file.exists(file_path)) {
+    
+    projection <- textProjection(
+      words = study3[[word_column]],
+      word_embeddings = embeddings$texts[[embedding_name]],
+      word_types_embeddings = embeddings$word_types[[embedding_name]],
+      x = x,
+      min_freq_words_test = 5,
+      Npermutations = 10000,
+      n_per_split = 5000,
+      seed = 42
+    )
+    
+    projection$word_data$stem <- c(
+      projection$word_data$words[1:3],
+      stemDocument(projection$word_data$words[4:nrow(projection$word_data)], language = "english")
+    )
+    
+    word_data_stemmed <- projection$word_data %>%
+      group_by(stem) %>%
+      reframe(
+        sum_n = sum(n, na.rm = TRUE),
+        mean_dot_x = mean(dot.x, na.rm = TRUE),
+        fisher_p_values_dot_x = fishers_method(p_values_dot.x),
+        sum_n_g1.x = sum(n_g1.x, na.rm = TRUE),
+        sum_n_g2.x = sum(n_g2.x, na.rm = TRUE),
+        sum_n_percent = sum(n.percent, na.rm = TRUE)
+      )
+    
+    merged_df <- projection$word_data %>%
+      left_join(word_data_stemmed, by = "stem")
+    
+    projection$word_data <- merged_df %>%
+      filter(!duplicated(stem))
+    
+    projection$word_data$n <- projection$word_data$sum_n
+    projection$word_data$dot.x <- projection$word_data$mean_dot_x
+    projection$word_data$p_values_dot.x <- projection$word_data$fisher_p_values_dot_x
+    projection$word_data$n_g1.x <- projection$word_data$sum_n_g1.x
+    projection$word_data$n_g2.x <- projection$word_data$sum_n_g2.x
+    projection$word_data$n.percent <- projection$word_data$sum_n_percent
+    
+    projection_plot <- textPlot(
+      word_data = projection,
+      k_n_words_to_test = TRUE,
+      min_freq_words_test = 5,
+      min_freq_words_plot = 5,
+      plot_n_words_square = 0,
+      plot_n_words_p = 30,
+      plot_n_word_extreme = 0,
+      plot_n_word_frequency = 0,
+      plot_n_words_middle = 0,
+      y_axes = FALSE,
+      p_alpha = 0.05,
+      title_top = " ",
+      x_axes_label = " ",
+      y_axes_label = NULL,
+      bivariate_color_codes = c("#398CF9", "#60A1F7", "#5dc688",
+                                "red", "blue2", "dodgerblue1",
+                                "#FF0000", "#EA7467", "#85DB8E"),
+      word_size_range = c(4, 14),
+      p_adjust_method = "fdr",
+      scale_y_axes_lim = NULL,
+      n_contrast_group_color = "white",
+      position_jitter_hight = 0.1,
+      position_jitter_width = 0.5,
+      arrow_transparency = 0,
+      points_without_words_alpha = 0,
+      remove_words = c(".", "-",",","`",",","(",")")
+    )
+    
+    dir.create(dirname(file_path), showWarnings = FALSE, recursive = TRUE)
+    saveRDS(projection_plot, file_path)
+  } else {
+    projection_plot <- readRDS(file_path)
+  }
+  
+  return(projection_plot)
+}
+```
+
+## Satisfaction with Life {.tabset}
+
+
+```{r SWLS-SDP}
+
+data_dir="~/Desktop/LP2-wellbeing-prediction" # set file path 
+
+embeddings <- readRDS(file.path(data_dir,"embeddings/Study3-WBP-embeddings.rds"))
+
+study3 = read_csv('/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction/data/Prolific_wellbeing-prediction-text-long.csv')
+embeddings <- readRDS(file.path(data_dir,"embeddings/Study3-WBP-embeddings.rds"))
+
+
+clean_text_column <- function(data, text_col, id_col = "pID", output_col) {
+  text_cleaning_tokens <- data[, c(text_col, id_col)] %>%
+    tidytext::unnest_tokens(word, !!sym(text_col))
+
+  # Remove one-character words and stop words
+  text_cleaning_tokens <- text_cleaning_tokens %>%
+    filter(nchar(word) > 1) %>%
+    anti_join(stop_words[stop_words$lexicon == "snowball", ], by = "word") %>%
+    filter(word != "")
+
+  # Spread and recombine
+  tokens <- text_cleaning_tokens %>%
+    group_by(!!sym(id_col)) %>%
+    mutate(ind = row_number()) %>%
+    tidyr::spread(key = ind, value = word)
+
+  tokens[is.na(tokens)] <- ""
+  tokens <- tidyr::unite(tokens, !!output_col, -!!sym(id_col), sep = " ")
+  tokens[[output_col]] <- trimws(tokens[[output_col]])
+
+  return(tokens)
+}
+
+# Clean both text columns
+cleaned_autonomy <- clean_text_column(study3, "Autonomy-Text", output_col = "Autonomy-Text-Cleaned")
+cleaned_swls     <- clean_text_column(study3, "SWLS-Text", output_col = "SWLS-Text-Cleaned")
+
+# Merge cleaned columns back into the original dataframe
+study3 <- study3 %>%
+  left_join(cleaned_autonomy, by = "pID") %>%
+  left_join(cleaned_swls,     by = "pID")
+```
+
+```{r study3-text-descriptives}
+
+study3_text_descp = textDescriptives(
+  study3[11:12],
+  compute_total = F,
+  entropy_unit = "log2",
+  na.rm = TRUE,
+  locale = "en_US"
+) 
+```
+
+
+
+### SWLS 
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`SWLS mean`,
+  x_label = "SWLS mean",           
+  word_column = "SWLS-Text-Cleaned",
+  embedding_name = "SWLS-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+words = sig_high_low |> 
+  select(words,5:9,26:28) |> 
+  head(50)
+
+
+#plot
+SWLS_SWLS = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Satisfaction With Life")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_SWLS_words
+
+SWLS_SWLS_words = sig_high_low |> 
+  select(words,n,mean_dot_x,fisher_p_values_dot_x,with_without) |> 
+  rename(high_low = with_without)
+
+write.csv(SWLS_SWLS_words, "study3_SWLS_SWLS_high_low_in_embedding_space.csv")
+
+```
+
+### Self-Acceptance
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB self_acceptance`,
+  x_label = "PWB self_acceptance",           
+  word_column = "SWLS-Text-Cleaned",
+  embedding_name = "SWLS-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_accpt = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Self-Acceptance")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_accpt
+```
+
+### Purpose
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB purpose`,
+  x_label = "PWB purpose",           
+  word_column = "SWLS-Text-Cleaned",
+  embedding_name = "SWLS-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_purpose = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Purpose in Life")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_purpose
+```
+
+### Positive relations
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB positive_relations`,
+  x_label = "PWB positive_relations",           
+  word_column = "SWLS-Text-Cleaned",
+  embedding_name = "SWLS-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_relations = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Positive Relations")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_relations
+```
+
+### Personal Growth
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB personal_growth`,
+  x_label = "PWB personal_growth",           
+  word_column = "SWLS-Text-Cleaned",
+  embedding_name = "SWLS-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_growth = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Personal Growth")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_growth
+```
+
+### Autonomy
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB autonomy`,
+  x_label = "PWB autonomy",           
+  word_column = "SWLS-Text-Cleaned",
+  embedding_name = "SWLS-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_autonomy = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Autonomy")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_autonomy
+```
+
+### PWB Mean
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB mean`,
+  x_label = "PWB mean",           
+  word_column = "SWLS-Text-Cleaned",
+  embedding_name = "SWLS-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_pwb = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Psychological Well-being")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text = element_blank(),      # removes axis tick labels
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_pwb
+```
+
+### Mastery
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB environmental_mastery`,
+  x_label = "PWB environmental_mastery",           
+  word_column = "SWLS-Text-Cleaned",
+  embedding_name = "SWLS-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+SWLS_mastery = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "dodgerblue1")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Environmental Mastery")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.title = element_blank(),     # removes axis titles
+    axis.text = element_blank(),      # removes axis tick labels
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+SWLS_mastery
+```
+
+### Study 3 SWL Prompt SDP
+
+```{r study3-swl-sdp, fig.height=9, fig.width=18}
+
+plot_list <- list(SWLS_SWLS, SWLS_accpt, SWLS_purpose, SWLS_relations,
+                   SWLS_growth, SWLS_autonomy, SWLS_pwb, SWLS_mastery)
+
+combined_plot <- ggarrange(plotlist = plot_list,
+                           ncol = 4, nrow = ceiling(length(plot_list)/4),
+                           labels = letters[1:length(plot_list)],
+                           label.x = 0.05,   # optional: adjust label position
+                           label.y = 0.95,
+                           common.legend = TRUE,
+                           legend = "bottom",
+                           font.label = list(size = 18, family = "Futura Medium", face = "bold"))
+
+combined_plot_with_title <- annotate_figure(
+  combined_plot,
+  top = text_grob(
+    "Satisfaction with Life Prompt Supervised Dimension Projection", 
+    color = "black", 
+    face = "bold", 
+    size = 20, 
+    family = "Futura Medium"
+  )
+)
+
+combined_plot_with_title
+```
+
+## Autonomy {.tabset}
+
+```{r Autonomy-function}
+
+generate_projection_plot <- function(x, x_label, word_column, embedding_name, model_dir = "~/Desktop/LP2-wellbeing-prediction/models/Study3/autonomy/SDP") {
+  
+  # Sanitize label for use in file paths
+   x_label_clean <- gsub(" ", "_", x_label)
+  file_path <- file.path(model_dir, paste0(x_label_clean, "_autonomy_plot.rds"))
+  
+  if (!file.exists(file_path)) {
+    
+    projection <- textProjection(
+      words = study3[[word_column]],
+      word_embeddings = embeddings$texts[[embedding_name]],
+      word_types_embeddings = embeddings$word_types[[embedding_name]],
+      x = x,
+      min_freq_words_test = 5,
+      Npermutations = 10000,
+      n_per_split = 5000,
+      seed = 42
+    )
+    
+    projection$word_data$stem <- c(
+      projection$word_data$words[1:3],
+      stemDocument(projection$word_data$words[4:nrow(projection$word_data)], language = "english")
+    )
+    
+    word_data_stemmed <- projection$word_data %>%
+      group_by(stem) %>%
+      reframe(
+        sum_n = sum(n, na.rm = TRUE),
+        mean_dot_x = mean(dot.x, na.rm = TRUE),
+        fisher_p_values_dot_x = fishers_method(p_values_dot.x),
+        sum_n_g1.x = sum(n_g1.x, na.rm = TRUE),
+        sum_n_g2.x = sum(n_g2.x, na.rm = TRUE),
+        sum_n_percent = sum(n.percent, na.rm = TRUE)
+      )
+    
+    merged_df <- projection$word_data %>%
+      left_join(word_data_stemmed, by = "stem")
+    
+    projection$word_data <- merged_df %>%
+      filter(!duplicated(stem))
+    
+    projection$word_data$n <- projection$word_data$sum_n
+    projection$word_data$dot.x <- projection$word_data$mean_dot_x
+    projection$word_data$p_values_dot.x <- projection$word_data$fisher_p_values_dot_x
+    projection$word_data$n_g1.x <- projection$word_data$sum_n_g1.x
+    projection$word_data$n_g2.x <- projection$word_data$sum_n_g2.x
+    projection$word_data$n.percent <- projection$word_data$sum_n_percent
+    
+    projection_plot <- textPlot(
+      word_data = projection,
+      k_n_words_to_test = TRUE,
+      min_freq_words_test = 5,
+      min_freq_words_plot = 5,
+      plot_n_words_square = 0,
+      plot_n_words_p = 30,
+      plot_n_word_extreme = 0,
+      plot_n_word_frequency = 0,
+      plot_n_words_middle = 0,
+      y_axes = FALSE,
+      p_alpha = 0.05,
+      title_top = " ",
+      x_axes_label = " ",
+      y_axes_label = NULL,
+      bivariate_color_codes = c("#398CF9", "#60A1F7", "#5dc688",
+                                "red4", "blue2", "green4",
+                                "#FF0000", "#EA7467", "#85DB8E"),
+      word_size_range = c(4, 14),
+      p_adjust_method = "fdr",
+      scale_y_axes_lim = NULL,
+      n_contrast_group_color = "white",
+      position_jitter_hight = 0.1,
+      position_jitter_width = 0.5,
+      arrow_transparency = 0,
+      points_without_words_alpha = 0,
+      remove_words = c(".", "-",",","`",",","(",")")
+    )
+    
+    dir.create(dirname(file_path), showWarnings = FALSE, recursive = TRUE)
+    saveRDS(projection_plot, file_path)
+  } else {
+    projection_plot <- readRDS(file_path)
+  }
+  
+  return(projection_plot)
+}
+```
+
+### SWLS 
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`SWLS mean`,
+  x_label = "SWLS mean",           
+  word_column = "Autonomy-Text-Cleaned",
+  embedding_name = "Autonomy-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+
+sig_high_low
+
+
+#plot
+autonomy_SWLS = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Satisfaction With Life")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_SWLS
+
+
+```
+
+### Self-Acceptance
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB self_acceptance`,
+  x_label = "PWB self_acceptance",           
+  word_column = "Autonomy-Text-Cleaned",
+  embedding_name = "Autonomy-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_accpt = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Self-Acceptance")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_accpt
+```
+
+### Purpose
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB purpose`,
+  x_label = "PWB purpose",           
+  word_column = "Autonomy-Text-Cleaned",
+  embedding_name = "Autonomy-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_purpose = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Purpose in Life")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_purpose
+```
+
+### Positive relations
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB positive_relations`,
+  x_label = "PWB positive_relations",           
+  word_column = "Autonomy-Text-Cleaned",
+  embedding_name = "Autonomy-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_relations = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Positive Relations")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_relations
+```
+
+### Personal Growth
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB personal_growth`,
+  x_label = "PWB personal_growth",           
+  word_column = "Autonomy-Text-Cleaned",
+  embedding_name = "Autonomy-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_growth = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Personal Growth")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_growth
+```
+
+### Autonomy
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB autonomy`,
+  x_label = "PWB autonomy",           
+  word_column = "Autonomy-Text-Cleaned",
+  embedding_name = "Autonomy-Text"
+)
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_autonomy = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Autonomy")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_autonomy
+
+
+autonomy_autonomy_high_low = sig_high_low |> 
+  select(words,n,mean_dot_x,fisher_p_values_dot_x,with_without) |> 
+  rename(high_low = with_without)
+
+write.csv(autonomy_autonomy_high_low, "study3_autonomy_autonomy_in_embedding_space.csv")
+
+```
+
+### PWB Mean
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB mean`,
+  x_label = "PWB mean",           
+  word_column = "Autonomy-Text-Cleaned",
+  embedding_name = "Autonomy-Text"
+)
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_pwb = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Psychological Well-being")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text = element_blank(),      # removes axis tick labels
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_pwb
+```
+
+### Mastery
+
+```{r}
+projection_plot <- generate_projection_plot(
+  x = study3$`PWB environmental_mastery`,
+  x_label = "PWB environmental_mastery",           
+  word_column = "Autonomy-Text-Cleaned",
+  embedding_name = "Autonomy-Text"
+)
+
+
+#see how many significant words
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted<0))
+length(which(projection_plot$processed_word_data$adjusted_p_values.x<.05 & projection_plot$processed_word_data$x_plotted>0))
+
+# make prettier 
+sig_high_low <- projection_plot$processed_word_data %>%
+  filter(!is.na(x_plotted)) %>%       # remove rows where x_plotted is NA
+  arrange(x_plotted) %>%
+    slice(c(1:50, (n()-49):n()))  
+
+#controlling all are significant
+length(sig_high_low$p_values_x<0.05)
+
+
+sig_high_low$x_plotted<-sig_high_low$x_plotted
+sig_high_low$with_without <- ifelse(sig_high_low$x_plotted > 0, "High", "Low")
+sig_high_low$n_rank<-rank(c(sig_high_low$n) )
+
+
+#plot
+autonomy_mastery = ggplot(sig_high_low) +
+  geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
+  geom_text_repel(
+    aes(
+      x_plotted, y = 0 * sample(c(-0.7, 0.7), nrow(sig_high_low), replace = TRUE),
+      color = with_without,
+      label = words,
+      size = n_rank
+    ),
+    family = 'Futura Medium',
+    fontface = 'bold',
+    box.padding = 0.1,
+    segment.color = '#cccccc',
+    segment.size = 0.5,
+    arrow = arrow(length = unit(0.01, 'npc')),
+    force = 21,
+    max.iter = 3e3,
+    nudge_x = 0,
+    nudge_y = sample(c(-1,-2,1,2), nrow(sig_high_low), replace = TRUE)
+  ) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.75) +
+  geom_text(
+    data = data.frame(
+      x = pretty(sig_high_low$x_plotted),
+      y = rep(0, length(pretty(sig_high_low$x_plotted))),
+      label = pretty(sig_high_low$x_plotted)
+    ),
+    aes(x, y, label = label),
+    vjust = 1.5
+  ) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
+  scale_x_continuous(expand = c(0.0, 1)) +
+  scale_y_continuous(expand = c(0.0, 1)) +
+  scale_size_continuous(range = c(3, 6)) +
+  xlab(substitute(paste(bold("Low vs. High Environmental Mastery")))) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.title = element_blank(),     # removes axis titles
+    axis.text = element_blank(),      # removes axis tick labels
+    axis.ticks = element_blank()      # removes axis tick marks
+  ) +
+  plot_aes
+
+autonomy_mastery
+```
+
+### Study 3 Autonomy Prompt SDP
+
+```{r study3-autono-sdp, fig.height=9, fig.width=18}
+
+plot_list <- list(autonomy_SWLS, autonomy_accpt, autonomy_purpose, autonomy_relations,
+                   autonomy_growth, autonomy_autonomy, autonomy_pwb, autonomy_mastery)
+
+combined_plot <- ggarrange(plotlist = plot_list,
+                           ncol = 4, nrow = ceiling(length(plot_list)/4),
+                           labels = letters[1:length(plot_list)],
+                           label.x = 0.05,   # optional: adjust label position
+                           label.y = 0.95,
+                           common.legend = TRUE,
+                           legend = "bottom",
+                           font.label = list(size = 18, family = "Futura Medium", face = "bold"))
+
+combined_plot_with_title <- annotate_figure(
+  combined_plot,
+  top = text_grob(
+    "Autonomy Prompt Supervised Dimension Projection", 
+    color = "black", 
+    face = "bold", 
+    size = 20, 
+    family = "Futura Medium"
+  )
+)
+
+combined_plot_with_title
+```
+
+### Study 3 SDP 
+
+```{r study3-swl-autonomy-sdp, fig.height=10, fig.width=8}
+
+plot_list <- list(autonomy_autonomy, SWLS_SWLS)
+
+combined_plot <- ggarrange(plotlist = plot_list,
+                           ncol = 1, nrow = 2,
+                           labels = letters[1:length(plot_list)],
+                           label.x = 0.05,   # optional: adjust label position
+                           label.y = 0.95,
+                           common.legend = TRUE,
+                           legend = "bottom",
+                           font.label = list(size = 18, family = "Futura Medium", face = "bold"))
+
+combined_plot_with_title <- annotate_figure(
+  combined_plot,
+  top = text_grob(
+    "Study 3 Supervised Dimension Projection", 
+    color = "black", 
+    face = "bold", 
+    size = 20, 
+    family = "Futura Medium"
+  )
+)
+
+combined_plot_with_title
+```
+
+
+# LIWC top 100 words by study and prompt 
+
+```{r fig.height=8, fig.width=8}
+library(tidyverse)
+library(jsonlite)
+
+# Set plot theme
+liwc_high_low <- theme_minimal() +
+  theme(
+    legend.position = "top",
+    text = element_text(family = "Futura Medium"),
+    axis.ticks.y = element_blank(),
+    plot.title = element_text(hjust = 0.5)
+  )
+
+# File names for LIWC input/output
+input_csv <- "Study2_3_combined_words.csv"
+output_csv <- "LIWC_Study2_3_combined_words.csv"
+
+if (!file.exists(output_csv)) {
+  message("LIWC output not found, loading datasets and running LIWC CLI...")
+  
+  # File paths
+  data_paths <- list(
+    study2_autonomy = "study2_autonomy_autonomy_in_embedding_space.csv",
+    study2_swls = "study2_SWLS_SWLS_in_embedding_space.csv",
+    study3_autonomy = "study3_autonomy_autonomy_in_embedding_space.csv",
+    study3_swls = "study3_SWLS_SWLS_high_low_in_embedding_space.csv"
+  )
+  
+  # Read and bind all datasets
+  words <- bind_rows(
+    read_csv(data_paths$study2_autonomy) %>% mutate(study = "Study 2", type = "Autonomy"),
+    read_csv(data_paths$study2_swls) %>% mutate(study = "Study 2", type = "SWLS"),
+    read_csv(data_paths$study3_autonomy) %>% mutate(study = "Study 3", type = "Autonomy"),
+    read_csv(data_paths$study3_swls) %>% mutate(study = "Study 3", type = "SWLS")
+  )
+  
+  # Write input file
+  write_csv(words, input_csv)
+  
+  # Run LIWC CLI
+  system(paste(
+    "LIWC-22-cli",
+    "--mode wc",
+    "--row-id-indices 1",
+    "--column-indices 2", # the
+    "--input", shQuote(input_csv),
+    "--output", shQuote(output_csv)
+  ), intern = FALSE, wait = TRUE)
+  
+} else {
+  message("LIWC output exists, skipping data loading and LIWC CLI.")
+  
+  # If LIWC output exists, you still need the original words dataset for merging later
+  # So load it here:
+  words <- read_csv(input_csv)
+}
+
+# Load LIWC results and merge
+liwc_results <- read_csv(output_csv)
+words_liwc <- bind_cols(words, liwc_results %>% select(-1))
+
+liwc_long <- words_liwc %>%
+  pivot_longer(cols = `function`:focusfuture, names_to = "liwc_category", values_to = "value") %>%
+  mutate(weighted_value = value * n)  # n is assumed to be word frequency
+# Pivot to long format
+liwc_summary <- liwc_long %>%
+  group_by(study, type, high_low, liwc_category) %>%
+  summarise(mean_value = sum(weighted_value, na.rm = TRUE) / sum(n, na.rm = TRUE), .groups = "drop")
+
+# Get top 5 categories per group
+top_liwc <- liwc_summary %>%
+  group_by(study, type, high_low) %>%
+  slice_max(mean_value, n = 5, with_ties = FALSE) %>%
+  ungroup()
+
+# Plot
+ggplot(top_liwc, aes(x = reorder(liwc_category, mean_value), y = mean_value, fill = high_low)) +
+  geom_col(position = "dodge") +
+  facet_grid(type ~ study, scales = "free_y") +
+  coord_flip() +
+  scale_fill_manual(values = c("High" = "#1b9e77", "Low" = "#d95f02")) +
+  labs(
+    x = "LIWC Category",
+    y = "LIWC Frequency",
+    fill = "Group",
+    title = "Top LIWC Categories by Study and Prompt Type"
+  ) +
+  liwc_high_low
+```
+
+

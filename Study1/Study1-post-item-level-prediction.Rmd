@@ -134,59 +134,71 @@ df <- data %>%
 items <- df %>%
   dplyr::select(10:32)
 
-calculate_cronbach_alpha <- function(df) {
+calculate_alpha_omega <- function(df) {
   # Identify subscales based on column names
   subscales <- unique(sub("_[0-9]+$", "", colnames(df)))
   
   # Remove non-item columns
   subscales <- subscales[!subscales %in% c("pID", "survey_name")]
   
-  # Initialize a dataframe to store alpha results
-  alpha_results <- data.frame(subscale = character(), alpha = numeric(), stringsAsFactors = FALSE)
+  # Initialize a dataframe to store results
+  results <- data.frame(subscale = character(), 
+                        alpha = numeric(), 
+                        omega = numeric(),
+                        stringsAsFactors = FALSE)
   
-  # Loop through each subscale and calculate Cronbach's alpha
+  # Loop through each subscale
   for (subscale in subscales) {
-    # dplyr::select columns for the current subscale
     subscale_cols <- grep(paste0("^", subscale, "_"), colnames(df), value = TRUE)
     
-    if (length(subscale_cols) > 0) {
-      # Calculate Cronbach's alpha
-      alpha_value <- psych::alpha(df[, subscale_cols], check.keys = TRUE)$total$raw_alpha
+    if (length(subscale_cols) > 1) {  # omega needs at least 2 items
+      items_matrix <- df[, subscale_cols]
       
-      # Store the result in the dataframe
-      alpha_results <- rbind(alpha_results, data.frame(subscale = subscale, alpha = alpha_value))
+      alpha_val <- tryCatch(
+        psych::alpha(items_matrix, check.keys = TRUE)$total$raw_alpha,
+        error = function(e) NA
+      )
+      
+      omega_val <- tryCatch(
+        psych::omega(items_matrix, nfactors = 1, warnings = FALSE)$omega.tot,
+        error = function(e) NA
+      )
+      
+      results <- rbind(results, data.frame(subscale = subscale, alpha = alpha_val, omega = omega_val))
     }
   }
   
-  # Calculate Cronbach's alpha for all PWB items excluding SWLS items
-  # dplyr::select PWB columns
+  # Calculate omega for PWB-only (excluding SWLS)
   pwb_cols <- grep("^PWB_", colnames(df), value = TRUE)
-  
-  # dplyr::select SWLS columns
   swls_cols <- grep("^SWLS_", colnames(df), value = TRUE)
+  pwb_excl_swls <- setdiff(pwb_cols, swls_cols)
   
-  # Ensure there are columns to exclude
-  if (length(pwb_cols) > 0 && length(swls_cols) > 0) {
-    # Exclude SWLS columns from PWB columns
-    pwb_excluding_swls_cols <- setdiff(pwb_cols, swls_cols)
+  if (length(pwb_excl_swls) > 1) {
+    items_matrix <- df[, pwb_excl_swls]
     
-    if (length(pwb_excluding_swls_cols) > 0) {
-      pwb_alpha_value <- psych::alpha(df[, pwb_excluding_swls_cols], check.keys = TRUE)$total$raw_alpha
-      
-      # Add the result to the dataframe
-      alpha_results <- rbind(alpha_results, data.frame(subscale = "PWB", alpha = pwb_alpha_value))
-    }
+    alpha_val <- tryCatch(
+      psych::alpha(items_matrix, check.keys = TRUE)$total$raw_alpha,
+      error = function(e) NA
+    )
+    
+    omega_val <- tryCatch(
+      psych::omega(items_matrix, nfactors = 1, warnings = FALSE)$omega.tot,
+      error = function(e) NA
+    )
+    
+    results <- rbind(results, data.frame(subscale = "PWB", alpha = alpha_val, omega = omega_val))
   }
   
-  return(alpha_results)
+  return(results)
 }
 
 
-alpha_results <- calculate_cronbach_alpha(items)
+omega_results <- calculate_alpha_omega(items)
 
 
-alpha_results %>% 
-  mutate(alpha = round(alpha, 3)) %>% 
+omega_results %>% 
+  mutate(alpha = round(alpha, 3),
+         omega = round(omega,3)) %>% 
   reactable(striped = TRUE,
             filterable = TRUE,
             resizable = TRUE,

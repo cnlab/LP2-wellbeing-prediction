@@ -1,0 +1,637 @@
+---
+title: "Study2: GPT Comparison"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "gpt-comp-figs/fig_",dpi = 600)
+options(scipen=999)
+
+```
+
+
+```{r load packages, include=FALSE}
+if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
+library(pacman)
+set.seed(123)
+options(ggrepel.max.overlaps = Inf)
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr,DT,stringr,ggwordcloud,Metrics,apaTables,text,install = T) 
+```
+
+```{r load gpt 3.5 data}
+autonomy = read_csv('~/Desktop/LP2-wellbeing-prediction/data/GPT/WBP-Autonomy-Text-GPT-gpt-3.5-turbo-1106-0-scores.csv')
+
+autonomy = autonomy |> 
+  select(-ends_with("-Text")) |> # remove text columns
+  rename_with(~ .x |> 
+                str_remove("^Autonomy_") |> 
+                str_remove("-3.5-turbo-1106$")) |> 
+  mutate(PWB_gpt = rowMeans(across(11:17), na.rm = TRUE)) 
+
+swls = read_csv('~/Desktop/LP2-wellbeing-prediction/data/GPT/WBP-SWLS-Text-GPT-gpt-3.5-turbo-1106-0-scores.csv')
+
+swls = swls |> 
+  select(-ends_with("-Text")) |> # remove text columns
+  rename_with(~ .x |> 
+                str_remove("^SWLS_") |> 
+                str_remove("-3.5-turbo-1106$")) |> 
+  mutate(PWB_gpt = rowMeans(across(11:17), na.rm = TRUE))
+```
+
+```{r}
+plot_aes = theme_minimal() +
+  theme(legend.position = "none",
+        legend.text = element_text(size = 6),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
+        axis.ticks.y = element_blank())
+```
+
+# Study 3 GPT-Comparison {.tabset}
+
+# GPT-3.5
+
+```{r create-reliabilities}
+items = read.csv("~/Desktop/LP2-wellbeing-prediction/data/WBP_Study3_Behavioral_Cleaned_items.csv")
+
+items = items %>% 
+  dplyr::select(-X,pID)
+
+calculate_alpha_omega <- function(df) {
+  # Identify subscales based on column names
+  subscales <- unique(sub("_[0-9]+$", "", colnames(df)))
+  
+  # Remove non-item columns
+  subscales <- subscales[!subscales %in% c("pID", "survey_name")]
+  
+  # Initialize a dataframe to store results
+  results <- data.frame(subscale = character(), 
+                        alpha = numeric(), 
+                        omega = numeric(),
+                        stringsAsFactors = FALSE)
+  
+  # Loop through each subscale
+  for (subscale in subscales) {
+    subscale_cols <- grep(paste0("^", subscale, "_"), colnames(df), value = TRUE)
+    
+    if (length(subscale_cols) > 1) {  # omega needs at least 2 items
+      items_matrix <- df[, subscale_cols]
+      
+      alpha_val <- tryCatch(
+        psych::alpha(items_matrix, check.keys = TRUE)$total$raw_alpha,
+        error = function(e) NA
+      )
+      
+      omega_val <- tryCatch(
+        psych::omega(items_matrix, nfactors = 1, warnings = FALSE)$omega.tot,
+        error = function(e) NA
+      )
+      
+      results <- rbind(results, data.frame(subscale = subscale, alpha = alpha_val, omega = omega_val))
+    }
+  }
+  
+  # Calculate omega for PWB-only (excluding SWLS)
+  pwb_cols <- grep("^PWB_", colnames(df), value = TRUE)
+  swls_cols <- grep("^SWLS_", colnames(df), value = TRUE)
+  pwb_excl_swls <- setdiff(pwb_cols, swls_cols)
+  
+  if (length(pwb_excl_swls) > 1) {
+    items_matrix <- df[, pwb_excl_swls]
+    
+    alpha_val <- tryCatch(
+      psych::alpha(items_matrix, check.keys = TRUE)$total$raw_alpha,
+      error = function(e) NA
+    )
+    
+    omega_val <- tryCatch(
+      psych::omega(items_matrix, nfactors = 1, warnings = FALSE)$omega.tot,
+      error = function(e) NA
+    )
+    
+    results <- rbind(results, data.frame(subscale = "PWB", alpha = alpha_val, omega = omega_val))
+  }
+  
+  return(results)
+}
+
+omega_results <- calculate_alpha_omega(items)
+
+pwb = items %>% 
+  dplyr::select(3:20)
+
+
+
+pwb_alpha_value <- psych::alpha(pwb)$total$raw_alpha
+pwb_omega_value <- psych::omega(pwb, nfactors = 1, warnings = FALSE)$omega.tot
+
+# Create the new row
+pwb_row <- data.frame(
+  subscale = "PWB",
+  alpha = pwb_alpha_value,
+  omega = pwb_omega_value
+)
+
+# If omega_results doesn't exist yet, initialize it
+if (!exists("omega_results")) {
+  omega_results <- pwb_row
+} else {
+  omega_results <- rbind(omega_results, pwb_row)
+}
+
+
+omega_results = omega_results %>% 
+  mutate(
+    subscale = trimws(subscale), 
+    subscale = case_when(
+      subscale == "self_acceptance"         ~ "PWB self_acceptance",
+      subscale == "purpose"                 ~ "PWB purpose",
+      subscale == "personal_growth"         ~ "PWB personal_growth",
+      subscale == "positive_relations"      ~ "PWB positive_relations",
+      subscale == "Autonomy"                ~ "PWB autonomy",
+      subscale == "environmental_mastery"   ~ "PWB environmental_mastery",
+      subscale == "SWLS"                    ~ "SWLS mean",
+      subscale == "PWB"                     ~ "PWB mean",
+      TRUE ~ subscale 
+    ),
+    alpha = round(alpha, 3),
+    omega = round(omega, 3))
+
+```
+
+
+## Autonomy {.tabset}
+
+```{r fig.height=8, fig.width=6}
+pwb_cols <- c(
+  "PWB autonomy",
+  "PWB self_acceptance",
+  "PWB positive_relations",
+  "PWB environmental_mastery",
+  "PWB purpose",
+  "PWB personal_growth",
+  "SWLS mean"
+)
+
+gpt_cols <- c(
+  "Autonomy_gpt",  # assuming this is Autonomy_gpt
+  "SelfAcceptance_gpt",
+  "PositiveRelations_gpt",
+  "EnvironmentalMastery_gpt",
+  "PurposeInLife_gpt",
+  "PersonalGrowth_gpt",
+  "SWLS_gpt"
+)
+
+r_xx_predictor <- 1
+
+cor_summary <- map2_dfr(pwb_cols, gpt_cols, ~ {
+  df <- autonomy %>%
+    select(all_of(c(.x, .y))) %>%
+    drop_na()
+
+  cor_test <- cor.test(df[[.x]], df[[.y]])
+  rmse_val <- rmse(df[[.x]], df[[.y]])
+
+  tibble(
+    PWB = .x,
+    GPT = .y,
+    correlation = cor_test$estimate,
+    p_value = cor_test$p.value,
+    t_statistic = cor_test$statistic,
+    df = cor_test$parameter,
+    CI_lower = cor_test$conf.int[1],
+    CI_upper = cor_test$conf.int[2],
+    RMSE = rmse_val
+  )
+}) %>%
+  mutate(
+    across(c(correlation, RMSE), round, 3),
+    across(c(p_value, CI_lower, CI_upper), round, 4),
+    sig = case_when(
+      p_value < 0.001 ~ "***",
+      p_value < 0.01 ~ "**",
+      p_value < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  arrange(desc(correlation)) %>%
+  rename(outcome = PWB, LBA = GPT) %>%
+  mutate(
+    prompt = "Autonomy-GPT",
+    p_value_corrected = p.adjust(p_value, method = "fdr"),
+    corr_label = paste0(correlation, sig),
+    label_text = paste0(round(correlation, 2), sig),
+    rmse_text = sprintf("[%s]", round(RMSE, 3))
+  ) %>%
+  left_join(omega_results %>% select(subscale, omega), by = c("outcome" = "subscale")) %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    disattenuated_correlation = correlation / sqrt(r_xx_predictor * omega),
+    across(where(is.numeric), round, 3)
+  )
+
+cor_summary |> 
+  datatable(
+    extensions = 'FixedColumns',
+    filter = list(position = 'top', clear = FALSE),
+    options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25)
+  )
+
+
+
+autonomy_gpt_heat <- ggplot(cor_summary, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
+              fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
+          color = "black", size = 3.5) +
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+  geom_text(data = subset(cor_summary, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(cor_summary, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(cor_summary, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
+
+autonomy_gpt_heat
+
+```
+
+## Satsifaction with Life {.tabset}
+
+```{r fig.height=8, fig.width=6}
+pwb_cols <- c(
+  "PWB autonomy",
+  "PWB self_acceptance",
+  "PWB positive_relations",
+  "PWB environmental_mastery",
+  "PWB purpose",
+  "PWB personal_growth",
+  "SWLS mean"
+)
+
+gpt_cols <- c(
+  "Autonomy_gpt",  # assuming this is Autonomy_gpt
+  "SelfAcceptance_gpt",
+  "PositiveRelations_gpt",
+  "EnvironmentalMastery_gpt",
+  "PurposeInLife_gpt",
+  "PersonalGrowth_gpt",
+  "SWLS_gpt"
+)
+
+cor_summary <- map2_dfr(pwb_cols, gpt_cols, ~ {
+  df <- swls %>%
+    select(all_of(c(.x, .y))) %>%
+    drop_na()
+
+  cor_test <- cor.test(df[[.x]], df[[.y]])
+  rmse_val <- rmse(df[[.x]], df[[.y]])
+
+  tibble(
+    PWB = .x,
+    GPT = .y,
+    correlation = cor_test$estimate,
+    p_value = cor_test$p.value,
+    t_statistic = cor_test$statistic,
+    df = cor_test$parameter,
+    CI_lower = cor_test$conf.int[1],
+    CI_upper = cor_test$conf.int[2],
+    RMSE = rmse_val
+  )
+}) %>%
+  mutate(
+    across(c(correlation, RMSE), round, 3),
+    across(c(p_value, CI_lower, CI_upper), round, 4),
+    sig = case_when(
+      p_value < 0.001 ~ "***",
+      p_value < 0.01 ~ "**",
+      p_value < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  arrange(desc(correlation)) %>%
+  rename(outcome = PWB, LBA = GPT) %>%
+  mutate(
+    prompt = "SWLS-GPT",
+    p_value_corrected = p.adjust(p_value, method = "fdr"),
+    corr_label = paste0(correlation, sig),
+    label_text = paste0(round(correlation, 2), sig),
+    rmse_text = sprintf("[%s]", round(RMSE, 3))
+  ) %>%
+  left_join(omega_results %>% select(subscale, omega), by = c("outcome" = "subscale")) %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    disattenuated_correlation = correlation / sqrt(r_xx_predictor * omega),
+    across(where(is.numeric), round, 3)
+  )
+
+cor_summary |> 
+  datatable(
+    extensions = 'FixedColumns',
+    filter = list(position = 'top', clear = FALSE),
+    options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25)
+  )
+
+
+
+swl_gpt_heat <- ggplot(cor_summary, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
+              fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
+          color = "black", size = 3.5) +
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+  geom_text(data = subset(cor_summary, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(cor_summary, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(cor_summary, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
+
+swl_gpt_heat
+```
+
+## Compare Prompts
+
+```{r}
+all_heat = ggarrange(autonomy_gpt_heat, swl_gpt_heat, ncol = 2,nrow = 1, common.legend = F)
+
+all_heat +
+  ggtitle("Subscale Predictions (GPT-3.5)") +
+
+  plot_aes  +  
+  theme(
+    plot.title = element_text(hjust = 0.5, vjust = 1.5),
+    plot.caption = element_text(hjust = 1, size = 10)
+  ) 
+```
+
+# GPT-4
+
+```{r}
+autonomy = read_csv('~/Desktop/LP2-wellbeing-prediction/data/GPT/WBP-Autonomy-Text-GPT-gpt-4-0-scores.csv')
+
+autonomy = autonomy |> 
+  select(-ends_with("-Text")) |> # remove text columns
+  rename_with(~ .x |> 
+                str_remove("^Autonomy_") |> 
+                str_remove("-4")) |> 
+  mutate(PWB_gpt = rowMeans(across(11:17), na.rm = TRUE)) 
+
+swls = read_csv('~/Desktop/LP2-wellbeing-prediction/data/GPT/WBP-SWLS-Text-GPT-gpt-4-0-scores.csv')
+
+swls = swls |> 
+  select(-ends_with("-Text")) |> # remove text columns
+  rename_with(~ .x |> 
+                str_remove("^SWLS_") |> 
+                str_remove("-4")) |> 
+  mutate(PWB_gpt = rowMeans(across(11:17), na.rm = TRUE)) 
+```
+
+## Autonomy {.tabset}
+
+```{r fig.height=8, fig.width=6}
+pwb_cols <- c(
+  "PWB autonomy",
+  "PWB self_acceptance",
+  "PWB positive_relations",
+  "PWB environmental_mastery",
+  "PWB purpose",
+  "PWB personal_growth",
+  "SWLS mean"
+)
+
+gpt_cols <- c(
+  "Autonomy_gpt",  # assuming this is Autonomy_gpt
+  "SelfAcceptance_gpt",
+  "PositiveRelations_gpt",
+  "EnvironmentalMastery_gpt",
+  "PurposeInLife_gpt",
+  "PersonalGrowth_gpt",
+  "SWLS_gpt"
+)
+
+r_xx_predictor <- 1
+
+cor_summary <- map2_dfr(pwb_cols, gpt_cols, ~ {
+  df <- autonomy %>%
+    select(all_of(c(.x, .y))) %>%
+    drop_na()
+
+  cor_test <- cor.test(df[[.x]], df[[.y]])
+  rmse_val <- rmse(df[[.x]], df[[.y]])
+
+  tibble(
+    PWB = .x,
+    GPT = .y,
+    correlation = cor_test$estimate,
+    p_value = cor_test$p.value,
+    t_statistic = cor_test$statistic,
+    df = cor_test$parameter,
+    CI_lower = cor_test$conf.int[1],
+    CI_upper = cor_test$conf.int[2],
+    RMSE = rmse_val
+  )
+}) %>%
+  mutate(
+    across(c(correlation, RMSE), round, 3),
+    across(c(p_value, CI_lower, CI_upper), round, 4),
+    sig = case_when(
+      p_value < 0.001 ~ "***",
+      p_value < 0.01 ~ "**",
+      p_value < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  arrange(desc(correlation)) %>%
+  rename(outcome = PWB, LBA = GPT) %>%
+  mutate(
+    prompt = "Autonomy-GPT",
+    p_value_corrected = p.adjust(p_value, method = "fdr"),
+    corr_label = paste0(correlation, sig),
+    label_text = paste0(round(correlation, 2), sig),
+    rmse_text = sprintf("[%s]", round(RMSE, 3))
+  ) %>%
+  left_join(omega_results %>% select(subscale, omega), by = c("outcome" = "subscale")) %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    disattenuated_correlation = correlation / sqrt(r_xx_predictor * omega),
+    across(where(is.numeric), round, 3)
+  )
+
+cor_summary |> 
+  datatable(
+    extensions = 'FixedColumns',
+    filter = list(position = 'top', clear = FALSE),
+    options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25)
+  )
+
+
+
+autonomy_gpt_heat <- ggplot(cor_summary, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
+              fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
+          color = "black", size = 3.5) +
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+  geom_text(data = subset(cor_summary, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(cor_summary, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(cor_summary, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
+
+autonomy_gpt_heat
+
+```
+
+## Satsifaction with Life {.tabset}
+
+```{r fig.height=8, fig.width=6}
+pwb_cols <- c(
+  "PWB autonomy",
+  "PWB self_acceptance",
+  "PWB positive_relations",
+  "PWB environmental_mastery",
+  "PWB purpose",
+  "PWB personal_growth",
+  "SWLS mean"
+)
+
+gpt_cols <- c(
+  "Autonomy_gpt",  # assuming this is Autonomy_gpt
+  "SelfAcceptance_gpt",
+  "PositiveRelations_gpt",
+  "EnvironmentalMastery_gpt",
+  "PurposeInLife_gpt",
+  "PersonalGrowth_gpt",
+  "SWLS_gpt"
+)
+
+cor_summary <- map2_dfr(pwb_cols, gpt_cols, ~ {
+  df <- swls %>%
+    select(all_of(c(.x, .y))) %>%
+    drop_na()
+
+  cor_test <- cor.test(df[[.x]], df[[.y]])
+  rmse_val <- rmse(df[[.x]], df[[.y]])
+
+  tibble(
+    PWB = .x,
+    GPT = .y,
+    correlation = cor_test$estimate,
+    p_value = cor_test$p.value,
+    t_statistic = cor_test$statistic,
+    df = cor_test$parameter,
+    CI_lower = cor_test$conf.int[1],
+    CI_upper = cor_test$conf.int[2],
+    RMSE = rmse_val
+  )
+}) %>%
+  mutate(
+    across(c(correlation, RMSE), round, 3),
+    across(c(p_value, CI_lower, CI_upper), round, 4),
+    sig = case_when(
+      p_value < 0.001 ~ "***",
+      p_value < 0.01 ~ "**",
+      p_value < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  arrange(desc(correlation)) %>%
+  rename(outcome = PWB, LBA = GPT) %>%
+  mutate(
+    prompt = "SWLS-GPT",
+    p_value_corrected = p.adjust(p_value, method = "fdr"),
+    corr_label = paste0(correlation, sig),
+    label_text = paste0(round(correlation, 2), sig),
+    rmse_text = sprintf("[%s]", round(RMSE, 3))
+  ) %>%
+  left_join(omega_results %>% select(subscale, omega), by = c("outcome" = "subscale")) %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    disattenuated_correlation = correlation / sqrt(r_xx_predictor * omega),
+    across(where(is.numeric), round, 3)
+  )
+
+cor_summary |> 
+  datatable(
+    extensions = 'FixedColumns',
+    filter = list(position = 'top', clear = FALSE),
+    options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25)
+  )
+
+
+
+swl_gpt_heat <- ggplot(cor_summary, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
+              fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
+          color = "black", size = 3.5) +
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+  geom_text(data = subset(cor_summary, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(cor_summary, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(cor_summary, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
+
+swl_gpt_heat
+```
+
+## Compare Prompts
+
+```{r}
+all_heat = ggarrange(autonomy_gpt_heat, swl_gpt_heat, ncol = 2,nrow = 1, common.legend = F)
+
+all_heat +
+  ggtitle("Subscale Predictions (GPT-4)") +
+
+  plot_aes  +  
+  theme(
+    plot.title = element_text(hjust = 0.5, vjust = 1.5),
+    plot.caption = element_text(hjust = 1, size = 10)
+  ) 
+```
