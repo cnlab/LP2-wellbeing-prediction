@@ -1,4 +1,4 @@
-all: Study1 Study2 Study3
+all: Study1 Study2 Study3 Word-viz
 
 # Study 1 Analyses
 Study1: Study1-main Study1-pre-item Study1-post-subscale
@@ -6,7 +6,7 @@ Study1: Study1-main Study1-pre-item Study1-post-subscale
 Study1-main:
 	Rscript -e "rmarkdown::render('Study1/Study1-subscale-prediction.Rmd')"
 	
-Study1-SI: Study1-post-subscale Study1-pre-itemS tudy1-post-item
+Study1-SI: Study1-post-subscale Study1-pre-item Study1-post-item
 
 Study1-post-subscale: 
 	Rscript -e "rmarkdown::render('Study1/Study1-Post-subscale.Rmd')" # post subscale predictions [needs to be updated ATM]
@@ -35,6 +35,12 @@ Study2-bootstrapping:
 Study3: Study3-main
 
 Study3-main: 
-	Rscript -e "rmarkdown::render('Study3/Study3-WBP.Rmd')
+	Rscript -e "rmarkdown::render('Study3/Study3-WBP.Rmd')"
 	
+Supplemental-Info: Word-viz GPT
+	
+Word-viz: 
+	Rscript -e "rmarkdown::render('Supplemental-Info/Embedding-viz/Word-viz.Rmd')"
 
+GPT: 
+	Rscript -e "rmarkdown::render('Supplemental-Info/GPT-Comparison/GPT-Comparison.Rmd')"	
