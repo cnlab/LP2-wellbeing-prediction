@@ -408,6 +408,16 @@ SWLS_subscale_results <- SWLS_subscale_results %>%
     t_statistics = as.numeric(t_statistics)
   )
 
+SWLS_subscale_results <- SWLS_subscale_results |> 
+  mutate(outcome = case_when(
+    outcome == "PWB positive_relations" ~ "Relationships (PWB)",
+    outcome == "PWB autonomy" ~ "Autonomy (PWB)",
+    outcome == "PWB environmental_mastery" ~ "Mastery (PWB)",
+    outcome == "PWB personal_growth" ~ "Growth (PWB)",
+    outcome == "PWB purpose" ~ "Purpose (PWB)",
+    outcome == "PWB self_acceptance" ~ "Acceptance (PWB)",
+    TRUE ~ outcome  # Keep original value if it doesn't match
+  ))
 
 SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
@@ -537,6 +547,16 @@ Autonomy_subscale_results <- Autonomy_subscale_results %>%
     t_statistics = as.numeric(t_statistics)
   )
 
+Autonomy_subscale_results = Autonomy_subscale_results |> 
+  mutate(outcome = case_when(
+    outcome == "PWB positive_relations" ~ "Relationships (PWB)",
+    outcome == "PWB autonomy" ~ "Autonomy (PWB)",
+    outcome == "PWB environmental_mastery" ~ "Mastery (PWB)",
+    outcome == "PWB personal_growth" ~ "Growth (PWB)",
+    outcome == "PWB purpose" ~ "Purpose (PWB)",
+    outcome == "PWB self_acceptance" ~ "Acceptance (PWB)",
+    TRUE ~ outcome  # Keep original value if it doesn't match
+  ))
 
 Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +

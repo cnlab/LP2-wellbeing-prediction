@@ -18,7 +18,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "Study1_subscale_fig/fig_")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE,fig.path = "Study1_subscale_fig/fig_",dpi = 600)
 options(scipen=999)
 ```
 
@@ -27,19 +27,20 @@ options(scipen=999)
 if (!require("pacman")) install.packages("pacman") #run this if you don't have pacman 
 library(pacman)
 
-pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr,DT,stringr,ggwordcloud,Metrics,apaTables,text,install = T) 
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr,DT,stringr,ggwordcloud,Metrics,apaTables,install = T) 
 # Set-up an environment with text-required python packages
 ```
 
-```{r eval=FALSE, include=FALSE}
+```{r eval=FALSE, message=TRUE, warning=TRUE, include=FALSE}
+
 #install.packages("devtools")
-#devtools::install_version("text", version = "1.2.1", repos = "http://cran.us.r-project.org")
 
-#### as of 8/29 need to exclusively use version 1.2.1 to get around a fatal R issue
-
+#install.packages("text")
+#devtools::install_github("oscarkjell/text")
 library(text)
 textrpp_install(prompt = F)
 textrpp_initialize()
+
 ```
 
 
@@ -1014,14 +1015,16 @@ combined_df <- rbind(autonomy_results,accept_results, affect_results, growth_res
 ### Add PWB tags to the outcomes.... 
 
 combined_df <- combined_df %>%
-  mutate(outcome = case_when(
-    outcome == "relationships" ~ paste0(outcome, " (PWB)"),
-    outcome == "autonomy" ~ paste0(outcome, " (PWB)"),
-    outcome == "mastery" ~ paste0(outcome, " (PWB)"),
-    outcome == "growth" ~ paste0(outcome, " (PWB)"),
-    outcome == "purpose" ~ paste0(outcome, " (PWB)"),
-    outcome == "acceptance" ~ paste0(outcome, " (PWB)"),
-    TRUE ~ outcome  # This keeps the original value for any other cases
+ mutate(outcome = case_when(
+    outcome == "relationships" ~ "Relationships (PWB)",
+    outcome == "autonomy" ~ "Autonomy (PWB)",
+    outcome == "mastery" ~ "Mastery (PWB)",
+    outcome == "growth" ~ "Growth (PWB)",
+    outcome == "purpose" ~ "Purpose (PWB)",
+    outcome == "acceptance" ~ "Acceptance (PWB)",
+    outcome == "SWLS" ~ "SWLS Mean",
+    outcome == "PWB" ~ "PWB Mean",
+    TRUE ~ outcome  # Keep original value if it doesn't match
   ))
 
 all_heat <- ggplot(combined_df, aes(x = prompt, y = outcome, fill = r)) +

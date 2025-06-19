@@ -44,7 +44,7 @@ pacman::p_load(
 
 #### as of 8/29 need to exclusively use version 1.2.1 to get around a fatal R issue
 #install.packages("text")
-#devtools::install_github("oscarkjell/text")
+Sys.setenv(KMP_DUPLICATE_LIB_OK = "TRUE") #Temporarily allows execution despite duplicate OpenMP libraries bc with M series chips no other work around
 library(text)
 textrpp_install(prompt = F)
 textrpp_initialize()

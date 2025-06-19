@@ -145,7 +145,7 @@ prediction2 <- textPredict(
   save_name = "study2_SWLS",
   check_matching_word_embeddings = FALSE,
   dim_names = FALSE,
-  device = "mps",
+  device = "mps",ga
   set_seed = 42
 )
 

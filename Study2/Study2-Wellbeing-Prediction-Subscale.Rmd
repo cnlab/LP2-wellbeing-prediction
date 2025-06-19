@@ -46,14 +46,10 @@ textrpp_initialize()
 ```
 
 ```{r}
-plot_aes_heat = theme_minimal() +
- theme(legend.position = "none",
-        legend.text = element_text(size = 8),
-        text = element_text(size = 12, family = "Futura Medium"),
-        axis.text = element_text(color = "black"),
-        axis.ticks.y = element_blank(),
-        plot.title = element_text(hjust = 0.5, size = 20))  # Center and increase title size)
-
+plot_aes = theme_minimal() +
+  theme(legend.position = "none",
+        text = element_text(family = "Futura Medium"),
+        axis.ticks.y = element_blank())
 ```
 
 ```{r define functions}
@@ -392,6 +388,16 @@ SWLS_subscale_results <- SWLS_subscale_results %>%
     t_statistics = as.numeric(t_statistics)
   )
 
+SWLS_subscale_results = SWLS_subscale_results |> 
+  mutate(outcome = case_when(
+    outcome == "PWB positive_relations" ~ "Relationships (PWB)",
+    outcome == "PWB autonomy" ~ "Autonomy (PWB)",
+    outcome == "PWB environmental_mastery" ~ "Mastery (PWB)",
+    outcome == "PWB personal_growth" ~ "Growth (PWB)",
+    outcome == "PWB purpose" ~ "Purpose (PWB)",
+    outcome == "PWB self_acceptance" ~ "Acceptance (PWB)",
+    TRUE ~ outcome  # Keep original value if it doesn't match
+  ))
 
 SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
@@ -411,7 +417,7 @@ SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = c
   geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes_heat
+  plot_aes +   theme(legend.position = "none")
 
 SWLS_heat
 ```
@@ -503,6 +509,17 @@ Autonomy_subscale_results <- Autonomy_subscale_results %>%
     t_statistics = as.numeric(t_statistics)
   )
 
+Autonomy_subscale_results = Autonomy_subscale_results |> 
+  mutate(outcome = case_when(
+    outcome == "PWB positive_relations" ~ "Relationships (PWB)",
+    outcome == "PWB autonomy" ~ "Autonomy (PWB)",
+    outcome == "PWB environmental_mastery" ~ "Mastery (PWB)",
+    outcome == "PWB personal_growth" ~ "Growth (PWB)",
+    outcome == "PWB purpose" ~ "Purpose (PWB)",
+    outcome == "PWB self_acceptance" ~ "Acceptance (PWB)",
+    TRUE ~ outcome  # Keep original value if it doesn't match
+  ))
+
 
 Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
@@ -522,22 +539,22 @@ Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
   geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes_heat
+  plot_aes + theme(legend.position = "none")
 
 Autonomy_heat
 ```
 
 ## All heatmaps (all data)
 
-```{r all-heat, fig.height=8, fig.width=8}
-all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = T)
+```{r all-heat }
+all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1)
 
 all_heat +
   ggtitle("Subscale Predictions") +
-  plot_aes_heat  +  
   theme(
     plot.title = element_text(hjust = 0.5, vjust = 1.5)
-  ) 
+  ) + 
+  plot_aes + theme(legend.position = "none")
 ```
 
 
@@ -988,7 +1005,7 @@ SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = c
   geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes_heat
+  plot_aes
 
 SWLS_heat
 ```
@@ -1099,7 +1116,7 @@ Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
   geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes_heat
+  plot_aes
 
 Autonomy_heat
 ```
@@ -1111,7 +1128,7 @@ Autonomy_heat
 all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend = F)
 
 all_heat +
-  plot_aes_heat +
+  plot_aes +
   ggtitle("Subscale Predictions (Text Only)") +
   theme(
     plot.title = element_text(hjust = 0.5, vjust = 1.5)
@@ -1555,7 +1572,7 @@ SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = c
   geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes_heat
+  plot_aes
 
 SWLS_heat
 ```
@@ -1673,7 +1690,7 @@ Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
   geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes_heat
+  plot_aes
 
 Autonomy_heat
 ```
@@ -1686,7 +1703,7 @@ all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1, common.legend =
 
 all_heat +
   ggtitle("Subscale Predictions (Audio Only)") +
-  plot_aes_heat  +  
+  plot_aes  +  
   theme(
     plot.title = element_text(hjust = 0.5, vjust = 1.5)
   ) 
