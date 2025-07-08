@@ -1029,8 +1029,9 @@ combined_df <- combined_df %>%
 
 all_heat <- ggplot(combined_df, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = paste0(round(r, 2), "(", round(r_disattenuated, 2), ")")),
-          color = "black", size = 4) + 
+     geom_text(aes(label = paste0(round(r, 2), "(", round(r_disattenuated, 2), ")"),
+              fontface = ifelse(p.value < 0.05, "bold", "plain")),
+          color = "black", size = 3.5) + 
   geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
