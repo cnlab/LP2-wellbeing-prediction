@@ -29,7 +29,7 @@ if (!require("pacman")) install.packages("pacman") #run this if you don't have p
 library(pacman)
 set.seed(123)
 options(ggrepel.max.overlaps = Inf)
-pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr,DT,stringr,ggwordcloud,Metrics,apaTables,text,install = T) 
+pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, reactable, knitr,DT,stringr,ggwordcloud,Metrics,apaTables,install = T) 
 ```
 
 ```{r load gpt 3.5 data}
@@ -194,7 +194,8 @@ pwb_cols <- c(
   "PWB environmental_mastery",
   "PWB purpose",
   "PWB personal_growth",
-  "SWLS mean"
+  "SWLS mean",
+  "PWB mean"                  
 )
 
 gpt_cols <- c(
@@ -204,7 +205,8 @@ gpt_cols <- c(
   "EnvironmentalMastery_gpt",
   "PurposeInLife_gpt",
   "PersonalGrowth_gpt",
-  "SWLS_gpt"
+  "SWLS_gpt",
+  "PWB_gpt" 
 )
 
 r_xx_predictor <- 1
@@ -242,7 +244,7 @@ cor_summary <- map2_dfr(pwb_cols, gpt_cols, ~ {
   arrange(desc(correlation)) %>%
   rename(outcome = PWB, LBA = GPT) %>%
   mutate(
-    prompt = "Autonomy-GPT",
+    prompt = "Autonomy-GPT-3.5",
     p_value_corrected = p.adjust(p_value, method = "fdr"),
     corr_label = paste0(correlation, sig),
     label_text = paste0(round(correlation, 2), sig),
@@ -262,7 +264,19 @@ cor_summary |>
     options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25)
   )
 
+cor_summary = cor_summary |> 
+    mutate(outcome = case_when(
+    outcome == "PWB positive_relations" ~ "Relationships (PWB)",
+    outcome == "PWB autonomy" ~ "Autonomy (PWB)",
+    outcome == "PWB environmental_mastery" ~ "Mastery (PWB)",
+    outcome == "PWB personal_growth" ~ "Growth (PWB)",
+    outcome == "PWB purpose" ~ "Purpose (PWB)",
+    outcome == "PWB self_acceptance" ~ "Acceptance (PWB)",
+    TRUE ~ outcome  # Keep original value if it doesn't match
+  ))
 
+
+gpt35_auto = cor_summary
 
 autonomy_gpt_heat <- ggplot(cor_summary, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
@@ -298,7 +312,8 @@ pwb_cols <- c(
   "PWB environmental_mastery",
   "PWB purpose",
   "PWB personal_growth",
-  "SWLS mean"
+  "SWLS mean",
+  "PWB mean"                  
 )
 
 gpt_cols <- c(
@@ -308,7 +323,8 @@ gpt_cols <- c(
   "EnvironmentalMastery_gpt",
   "PurposeInLife_gpt",
   "PersonalGrowth_gpt",
-  "SWLS_gpt"
+  "SWLS_gpt",
+  "PWB_gpt" 
 )
 
 cor_summary <- map2_dfr(pwb_cols, gpt_cols, ~ {
@@ -344,7 +360,7 @@ cor_summary <- map2_dfr(pwb_cols, gpt_cols, ~ {
   arrange(desc(correlation)) %>%
   rename(outcome = PWB, LBA = GPT) %>%
   mutate(
-    prompt = "SWLS-GPT",
+    prompt = "SWLS-GPT-3.5",
     p_value_corrected = p.adjust(p_value, method = "fdr"),
     corr_label = paste0(correlation, sig),
     label_text = paste0(round(correlation, 2), sig),
@@ -365,6 +381,19 @@ cor_summary |>
   )
 
 
+cor_summary = cor_summary |> 
+    mutate(outcome = case_when(
+    outcome == "PWB positive_relations" ~ "Relationships (PWB)",
+    outcome == "PWB autonomy" ~ "Autonomy (PWB)",
+    outcome == "PWB environmental_mastery" ~ "Mastery (PWB)",
+    outcome == "PWB personal_growth" ~ "Growth (PWB)",
+    outcome == "PWB purpose" ~ "Purpose (PWB)",
+    outcome == "PWB self_acceptance" ~ "Acceptance (PWB)",
+    TRUE ~ outcome  # Keep original value if it doesn't match
+  ))
+
+
+gpt35_swl = cor_summary
 
 swl_gpt_heat <- ggplot(cor_summary, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
@@ -392,9 +421,9 @@ swl_gpt_heat
 ## Compare Prompts
 
 ```{r}
-all_heat = ggarrange(autonomy_gpt_heat, swl_gpt_heat, ncol = 2,nrow = 1, common.legend = F)
+gpt35_all_heat = ggarrange(autonomy_gpt_heat, swl_gpt_heat, ncol = 2,nrow = 1, common.legend = F)
 
-all_heat +
+gpt35_all_heat +
   ggtitle("Subscale Predictions (GPT-3.5)") +
 
   plot_aes  +  
@@ -438,7 +467,8 @@ pwb_cols <- c(
   "PWB environmental_mastery",
   "PWB purpose",
   "PWB personal_growth",
-  "SWLS mean"
+  "SWLS mean",
+  "PWB mean"
 )
 
 gpt_cols <- c(
@@ -448,7 +478,8 @@ gpt_cols <- c(
   "EnvironmentalMastery_gpt",
   "PurposeInLife_gpt",
   "PersonalGrowth_gpt",
-  "SWLS_gpt"
+  "SWLS_gpt",
+  "PWB_gpt"  
 )
 
 r_xx_predictor <- 1
@@ -486,7 +517,7 @@ cor_summary <- map2_dfr(pwb_cols, gpt_cols, ~ {
   arrange(desc(correlation)) %>%
   rename(outcome = PWB, LBA = GPT) %>%
   mutate(
-    prompt = "Autonomy-GPT",
+    prompt = "Autonomy-GPT-4",
     p_value_corrected = p.adjust(p_value, method = "fdr"),
     corr_label = paste0(correlation, sig),
     label_text = paste0(round(correlation, 2), sig),
@@ -507,6 +538,20 @@ cor_summary |>
   )
 
 
+
+cor_summary = cor_summary |> 
+    mutate(outcome = case_when(
+    outcome == "PWB positive_relations" ~ "Relationships (PWB)",
+    outcome == "PWB autonomy" ~ "Autonomy (PWB)",
+    outcome == "PWB environmental_mastery" ~ "Mastery (PWB)",
+    outcome == "PWB personal_growth" ~ "Growth (PWB)",
+    outcome == "PWB purpose" ~ "Purpose (PWB)",
+    outcome == "PWB self_acceptance" ~ "Acceptance (PWB)",
+    TRUE ~ outcome  # Keep original value if it doesn't match
+  ))
+
+
+gpt4_auto = cor_summary
 
 autonomy_gpt_heat <- ggplot(cor_summary, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
@@ -542,7 +587,8 @@ pwb_cols <- c(
   "PWB environmental_mastery",
   "PWB purpose",
   "PWB personal_growth",
-  "SWLS mean"
+  "SWLS mean",
+  "PWB mean"
 )
 
 gpt_cols <- c(
@@ -552,7 +598,8 @@ gpt_cols <- c(
   "EnvironmentalMastery_gpt",
   "PurposeInLife_gpt",
   "PersonalGrowth_gpt",
-  "SWLS_gpt"
+  "SWLS_gpt",
+  "PWB_gpt"  
 )
 
 cor_summary <- map2_dfr(pwb_cols, gpt_cols, ~ {
@@ -588,7 +635,7 @@ cor_summary <- map2_dfr(pwb_cols, gpt_cols, ~ {
   arrange(desc(correlation)) %>%
   rename(outcome = PWB, LBA = GPT) %>%
   mutate(
-    prompt = "SWLS-GPT",
+    prompt = "SWLS-GPT-4",
     p_value_corrected = p.adjust(p_value, method = "fdr"),
     corr_label = paste0(correlation, sig),
     label_text = paste0(round(correlation, 2), sig),
@@ -609,6 +656,19 @@ cor_summary |>
   )
 
 
+cor_summary = cor_summary |> 
+    mutate(outcome = case_when(
+    outcome == "PWB positive_relations" ~ "Relationships (PWB)",
+    outcome == "PWB autonomy" ~ "Autonomy (PWB)",
+    outcome == "PWB environmental_mastery" ~ "Mastery (PWB)",
+    outcome == "PWB personal_growth" ~ "Growth (PWB)",
+    outcome == "PWB purpose" ~ "Purpose (PWB)",
+    outcome == "PWB self_acceptance" ~ "Acceptance (PWB)",
+    TRUE ~ outcome  # Keep original value if it doesn't match
+  ))
+
+
+gpt4_swl = cor_summary
 
 swl_gpt_heat <- ggplot(cor_summary, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
@@ -636,9 +696,9 @@ swl_gpt_heat
 ## Compare Prompts
 
 ```{r}
-all_heat = ggarrange(autonomy_gpt_heat, swl_gpt_heat, ncol = 2,nrow = 1, common.legend = F)
+gpt4_all_heat = ggarrange(autonomy_gpt_heat, swl_gpt_heat, ncol = 2,nrow = 1, common.legend = F)
 
-all_heat +
+gpt4_all_heat +
   ggtitle("Subscale Predictions (GPT-4)") +
 
   plot_aes  +  
@@ -647,3 +707,193 @@ all_heat +
     plot.caption = element_text(hjust = 1, size = 10)
   ) 
 ```
+
+# Compare Models
+
+```{r fig.height=7.5, fig.width=10.5}
+bert_autonomy <- readRDS("~/Desktop/LP2-wellbeing-prediction/models/Study3/Autonomy_subscale_results.RDS")
+bert_swls <- readRDS("~/Desktop/LP2-wellbeing-prediction/models/Study3/SWLS_subscale_results.RDS")
+
+
+Autonomy_subscale_results <- bert_autonomy %>%
+ mutate(
+    correlation = as.numeric(correlation),
+    disattenuated_correlation = as.numeric(disattenuated_correlation),
+    df = as.numeric(df),
+    p_value = as.numeric(p_value),
+    p_value_corrected = as.numeric(p_value_corrected),
+    t_statistics = as.numeric(t_statistics)
+  )
+
+Autonomy_subscale_results = Autonomy_subscale_results |> 
+  mutate(outcome = case_when(
+    outcome == "PWB positive_relations" ~ "Relationships (PWB)",
+    outcome == "PWB autonomy" ~ "Autonomy (PWB)",
+    outcome == "PWB environmental_mastery" ~ "Mastery (PWB)",
+    outcome == "PWB personal_growth" ~ "Growth (PWB)",
+    outcome == "PWB purpose" ~ "Purpose (PWB)",
+    outcome == "PWB self_acceptance" ~ "Acceptance (PWB)",
+    TRUE ~ outcome  # Keep original value if it doesn't match
+  ))
+
+bert_autonomy = Autonomy_subscale_results 
+
+Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
+              fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
+          color = "black", size = 3.5) +
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
+
+
+
+SWLS_subscale_results <- bert_swls %>%
+  mutate(
+    correlation = as.numeric(correlation),
+    disattenuated_correlation = as.numeric(disattenuated_correlation),
+    df = as.numeric(df),
+    p_value = as.numeric(p_value),
+    p_value_corrected = as.numeric(p_value_corrected),
+    t_statistics = as.numeric(t_statistics)
+  )
+
+SWLS_subscale_results <- SWLS_subscale_results |> 
+  mutate(outcome = case_when(
+    outcome == "PWB positive_relations" ~ "Relationships (PWB)",
+    outcome == "PWB autonomy" ~ "Autonomy (PWB)",
+    outcome == "PWB environmental_mastery" ~ "Mastery (PWB)",
+    outcome == "PWB personal_growth" ~ "Growth (PWB)",
+    outcome == "PWB purpose" ~ "Purpose (PWB)",
+    outcome == "PWB self_acceptance" ~ "Acceptance (PWB)",
+    TRUE ~ outcome  # Keep original value if it doesn't match
+  ))
+
+
+bert_swls = SWLS_subscale_results 
+
+SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
+              fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
+          color = "black", size = 3.5) +
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+  scale_fill_gradient2(low = "dodgerblue",
+                       mid = "#FFFFCC",
+                       high = "#c44536") +
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.05), 
+            aes(label = "*", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.01), 
+            aes(label = "**", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
+            aes(label = "***", x = prompt, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  plot_aes
+
+
+bert_heat = ggarrange(Autonomy_heat, SWLS_heat, ncol = 2,nrow = 1, common.legend = F)
+
+
+top_row <- ggarrange(
+  gpt35_all_heat, gpt4_all_heat,
+  labels = c("A", "B"),
+  ncol = 2,
+  common.legend = FALSE
+)
+
+# Second row: Centered BERT plot by placing empty plots on sides
+empty_plot <- ggplot() + theme_void()
+
+bottom_row <- ggarrange(
+  empty_plot, bert_heat, empty_plot,
+  widths = c(0.25, 0.5, 0.25),  # Adjust spacing as needed
+  labels = c("", "C", ""),
+  ncol = 3
+)
+
+all_heat <- ggarrange(
+  top_row,
+  bottom_row,
+  ncol = 1
+)
+
+# Show plot
+all_heat
+```
+
+```{r fig.height=7.5, fig.width=10.5}
+
+# List of all input dataframes and their labels
+model_dfs <- list(
+  "GPT-3.5 Autonomy" = gpt35_auto,
+  "GPT-3.5 SWLS"     = gpt35_swl,
+  "GPT-4 Autonomy"   = gpt4_auto,
+  "GPT-4 SWLS"       = gpt4_swl,
+  "BERT Autonomy"    = bert_autonomy,
+  "BERT SWLS"        = bert_swls
+)
+
+# Define the standardization and label pipeline
+facet_data <- model_dfs %>%
+  imap_dfr(~ .x %>%
+    mutate(Model = .y) %>%
+    select(prompt, outcome, correlation, disattenuated_correlation, RMSE, p_value_corrected, Model) %>%
+    mutate(across(where(is.numeric), round, 3))
+  ) %>%
+  mutate(
+    outcome = case_when(
+      outcome == "PWB autonomy" ~ "Autonomy (PWB)",
+      outcome == "PWB self_acceptance" ~ "Acceptance (PWB)",
+      outcome == "PWB positive_relations" ~ "Relationships (PWB)",
+      outcome == "PWB environmental_mastery" ~ "Mastery (PWB)",
+      outcome == "PWB personal_growth" ~ "Growth (PWB)",
+      outcome == "PWB purpose" ~ "Purpose (PWB)",
+      TRUE ~ outcome
+    ),
+    outcome = factor(outcome, levels = c(
+      "Autonomy (PWB)", "Acceptance (PWB)", "Relationships (PWB)",
+      "Mastery (PWB)", "Purpose (PWB)", "Growth (PWB)", "SWLS mean", "PWB mean"
+    ))
+  ) %>%
+  separate(Model, into = c("ModelType", "PromptType"), sep = " ", extra = "merge") %>%
+  mutate(PromptType = str_replace(PromptType, "GPT", "Prompt"))
+
+
+ggplot(facet_data, aes(x = ModelType, y = outcome, fill = correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = paste0(correlation, " (", disattenuated_correlation, ")")),
+            color = "black", size = 3.2,
+            fontface = ifelse(facet_data$p_value_corrected < 0.05, "bold", "plain")) +
+  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))),
+            color = "black", size = 2.5, vjust = 2.5) +
+  scale_fill_gradient2(low = "dodgerblue", mid = "#FFFFCC", high = "#c44536") +
+  geom_text(data = subset(facet_data, p_value_corrected < 0.05), 
+            aes(label = "*", x = ModelType, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(facet_data, p_value_corrected < 0.01), 
+            aes(label = "**", x = ModelType, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) +
+  geom_text(data = subset(facet_data, p_value_corrected < 0.001), 
+            aes(label = "***", x = ModelType, y = outcome, hjust = 1),
+            color = "black", size = 4, vjust = -0.5) + 
+  facet_wrap(~PromptType, ncol = 2) +
+  labs(
+    x = "Model Type", y = "Outcome"
+  ) + plot_aes
+
+```
+
