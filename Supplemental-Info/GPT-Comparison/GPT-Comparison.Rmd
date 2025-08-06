@@ -835,7 +835,7 @@ all_heat <- ggarrange(
 all_heat
 ```
 
-```{r fig.height=7.5, fig.width=10.5}
+```{r fig.height=6, fig.width=9}
 
 # List of all input dataframes and their labels
 model_dfs <- list(

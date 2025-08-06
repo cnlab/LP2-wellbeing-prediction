@@ -30,7 +30,7 @@ library(pacman)
 
 #setwd("~/Desktop/LP2-within/LP2-intervention-within/Text-Prediction/item_level_analyses")
 
-pacman::p_load(forecast, DT, multilevel,tidyverse, stringi,install = T)
+pacman::p_load(forecast, effsize,DT, multilevel,tidyverse, stringi,install = T)
 
 # Set-up an environment with text-required python packages
 ```
@@ -259,7 +259,7 @@ audio_errors_personal = SWLS_Audio_PWB_personal_growth_df$`all_errors$\`PWB pers
 SWLS_personal = t.test(text_errors_personal, audio_errors_personal, var.equal = TRUE)
 mean_text_personal = mean(text_errors_personal)
 mean_audio_personal = mean(audio_errors_personal)
-
+# 
 text_errors_purpose = SWLS_Text_PWB_purpose_df$`all_errors$\`PWB purpose\`$\`embeddings$texts$SWLS_PWB purpose_pred\``
 audio_errors_purpose = SWLS_Audio_PWB_purpose_df$`all_errors$\`PWB purpose\`$\`embeddings$texts$SWLS_PWB purpose_pred\``
 
@@ -280,6 +280,16 @@ p_values = c(SWLS_SWLS$p.value, SWLS_autonomy$p.value, SWLS_PWB$p.value, SWLS_po
 # Apply FDR correction
 p_adjusted = p.adjust(p_values, method = "fdr")
 
+# calculate effect sizes
+d_SWLS <- cohen.d(text_errors_SWLS, audio_errors_SWLS, pooled = TRUE)$estimate
+d_autonomy <- cohen.d(text_errors_autonomy, audio_errors_autonomy, pooled = TRUE)$estimate
+d_PWB <- cohen.d(text_errors_PWB, audio_errors_PWB, pooled = TRUE)$estimate
+d_pos_relations <- cohen.d(text_errors_pos_relations, audio_errors_pos_relations, pooled = TRUE)$estimate
+d_env_master <- cohen.d(text_errors_env_master, audio_errors_env_master, pooled = TRUE)$estimate
+d_personal <- cohen.d(text_errors_personal, audio_errors_personal, pooled = TRUE)$estimate
+d_purpose <- cohen.d(text_errors_purpose, audio_errors_purpose, pooled = TRUE)$estimate
+d_accept <- cohen.d(text_errors_accept, audio_errors_accept, pooled = TRUE)$estimate
+
 # Create a data frame with the results
 results_df <- data.frame(
   Measure = c("SWLS", "Autonomy", "PWB", "Positive Relations", "Environmental Mastery", "Personal Growth", "Purpose", "Self-Acceptance"),
@@ -293,15 +303,18 @@ results_df <- data.frame(
   mean_audio = c(mean_audio_SWLS, mean_audio_autonomy, mean_audio_PWB, mean_audio_pos_relations, mean_audio_env_master, mean_audio_personal, mean_audio_purpose, mean_audio_accept)
 )
 
+results_df$cohens_d <- c(d_SWLS, d_autonomy, d_PWB, d_pos_relations, d_env_master, d_personal, d_purpose, d_accept)
+
 # Round the necessary columns
 SWLS_model_errors <- results_df %>% 
-  dplyr::select(Measure, mean_text, mean_audio, df, t_statistic, p_value, p_adjusted) %>% 
+  dplyr::select(Measure, mean_text, mean_audio, df, t_statistic, p_value, p_adjusted,cohens_d) %>% 
   mutate(mean_text = round(as.numeric(mean_text), 2),
          mean_audio = round(as.numeric(mean_audio), 2),
          df = round(as.numeric(df), 2),
          t_statistic = round(as.numeric(t_statistic), 2),
          p_value = round(as.numeric(p_value), 3),
-         p_adjusted = round(as.numeric(p_adjusted), 3))
+         p_adjusted = round(as.numeric(p_adjusted), 3),
+         cohens_d = round(as.numeric(cohens_d), 3))
 
 # Display the data frame
 datatable(SWLS_model_errors, extensions = 'FixedColumns', 
@@ -560,20 +573,89 @@ results_df <- data.frame(
 results_df <- results_df %>%
   mutate(p_adjusted = p.adjust(p_value, method = "fdr"))
 
-Autonomy_model_errors = results_df %>% 
-  dplyr::select(1,7,8,6,2,3,9) %>% 
-  mutate(mean_text = round(as.numeric(mean_text),2),
-         mean_audio = round(as.numeric(mean_audio),2),
-         df = round(as.numeric(df),2),
-         t_statistic = round(as.numeric(t_statistic),2),
-         p_value = round(as.numeric(p_value),3),
-         p_adjusted = round(as.numeric(p_adjusted),3))
+# Calculate Cohen's d for each comparison
+d_SWLS <- cohen.d(text_errors_SWLS, audio_errors_SWLS, pooled = TRUE)$estimate
+d_autonomy <- cohen.d(text_errors_autonomy, audio_errors_autonomy, pooled = TRUE)$estimate
+d_PWB <- cohen.d(text_errors_PWB, audio_errors_PWB, pooled = TRUE)$estimate
+d_pos_relations <- cohen.d(text_errors_pos_relations, audio_errors_pos_relations, pooled = TRUE)$estimate
+d_env_master <- cohen.d(text_errors_env_master, audio_errors_env_master, pooled = TRUE)$estimate
+d_personal <- cohen.d(text_errors_personal, audio_errors_personal, pooled = TRUE)$estimate
+d_purpose <- cohen.d(text_errors_purpose, audio_errors_purpose, pooled = TRUE)$estimate
+d_accept <- cohen.d(text_errors_accept, audio_errors_accept, pooled = TRUE)$estimate
 
+# Add Cohen's d to your results data frame
+results_df$cohens_d <- c(d_SWLS, d_autonomy, d_PWB, d_pos_relations, d_env_master, d_personal, d_purpose, d_accept)
+
+# Then do your rounding and select columns including cohens_d
+Autonomy_model_errors <- results_df %>% 
+  dplyr::select(Measure, mean_text, mean_audio, df, t_statistic, p_value, p_adjusted, cohens_d) %>% 
+  mutate(
+    mean_text = round(as.numeric(mean_text), 2),
+    mean_audio = round(as.numeric(mean_audio), 2),
+    df = round(as.numeric(df), 2),
+    t_statistic = round(as.numeric(t_statistic), 2),
+    p_value = round(as.numeric(p_value), 3),
+    p_adjusted = round(as.numeric(p_adjusted), 3),
+    cohens_d = round(as.numeric(cohens_d), 3)
+  )
+
+# View and save
 datatable(Autonomy_model_errors, extensions = 'FixedColumns', 
-            filter = list(position = 'top', clear = FALSE),
-            options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
+          filter = list(position = 'top', clear = FALSE),
+          options = list(search = list(regex = TRUE, caseInsensitive = FALSE), pageLength = 25))
 
 write.csv(Autonomy_model_errors,"Autonomy_model_errors.csv")
 
 ```
 
+# Sensitivity Analysis 
+
+```{r}
+simulate_cohens_d_power <- function(n_text = 127, n_audio = 95,
+                                    d = 0,    # Cohen's d effect size
+                                    sd = 1,   # standard deviation in both groups
+                                    alpha = 0.05, n_sim = 1e4) {
+  
+  power <- replicate(n_sim, {
+    # Group means separated by d * sd
+    mean_text <- 0
+    mean_audio <- mean_text - d * sd
+    
+    # Simulate data
+    text_errors <- rnorm(n_text, mean = mean_text, sd = sd)
+    audio_errors <- rnorm(n_audio, mean = mean_audio, sd = sd)
+    
+    # Two-sample t-test
+    ttest <- t.test(text_errors, audio_errors, var.equal = FALSE)
+    
+    # Significant if p < alpha
+    as.numeric(ttest$p.value < alpha)
+  })
+  
+  mean(power)
+}
+
+# Define effect sizes (Cohen's d)
+d_values <- seq(0, 0.7, by = 0.05)
+
+powers_d <- sapply(d_values, function(d) simulate_cohens_d_power(d = d))
+
+power_df <- data.frame(
+  cohens_d = d_values,
+  power = powers_d
+)
+
+
+ggplot(power_df, aes(x = cohens_d, y = power)) +
+  geom_line() +
+  geom_point() +
+  geom_hline(yintercept = 0.8, linetype = "dashed", color = "red") +
+  labs(
+    x = "Cohen's d (Standardized Mean Difference)",
+    y = "Statistical Power",
+    title = "Power to Detect Differences in Cohen's d"
+  ) +
+  ylim(0, 1) +
+  theme_minimal()
+
+```
