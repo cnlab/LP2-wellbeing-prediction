@@ -52,30 +52,147 @@ To run all studies:
 -   `data` = csv files containing the data for all studies
 
 ```         
+├── data
+│   ├── GPT
+│   │   ├── WBP-Autonomy-Text-GPT-gpt-3.5-turbo-1106-0-scores.csv
+│   │   ├── WBP-Autonomy-Text-GPT-gpt-4-0-scores.csv
+│   │   ├── WBP-SWLS-Text-GPT-gpt-3.5-turbo-1106-0-scores.csv
+│   │   └── WBP-SWLS-Text-GPT-gpt-4-0-scores.csv
+│   ├── WBP_Study1_Cleaned.csv
+│   ├── WBP_Study2_Behavioral_Cleaned.csv
+│   ├── WBP_Study2_items.csv
+│   ├── WBP_Study2_Text_cleaned.csv
+│   ├── WBP_Study3_Behavioral_Cleaned_items.csv
+│   └── WBP_Study3_Behavioral_Cleaned.csv
+├── LP2-within.Rproj
+├── Makefile
+├── models
+│   ├── Study1
+│   │   ├── acceptance
+│   │   │   ├── accept_acceptance_sub.RDS
+│   │   │   ├── accept_autonomy_sub.RDS
+│   │   │   ├── accept_growth_sub.RDS
+│   │   │   ├── accept_mastery_sub.RDS
+│   │   │   ├── accept_purpose_sub.RDS
+│   │   │   ├── accept_PWB_sub.RDS
+│   │   │   ├── accept_relationships_sub.RDS
+│   │   │   ├── accept_SWLS_sub.RDS
+│   │   │   └── acceptance_subscale_df.RDS
+│   │   ├── affect
+│   │   │   ├── affect_acceptance_sub.RDS
+│   │   │   ├── affect_autonomy_sub.RDS
+│   │   │   ├── affect_growth_sub.RDS
+│   │   │   ├── affect_mastery_sub.RDS
+│   │   │   ├── affect_purpose_sub.RDS
+│   │   │   ├── affect_PWB_sub.RDS
+│   │   │   ├── affect_relationships_sub.RDS
+│   │   │   ├── affect_results.RDS
+│   │   │   └── affect_SWLS_sub.RDS
+│   │   ├── all_subscales.RDS
+│   │   ├── autonomy
+│   │   │   ├── autonomy_acceptance_sub.RDS
+│   │   │   ├── autonomy_autonomy_sub.RDS
+│   │   │   ├── autonomy_growth_sub.RDS
+│   │   │   ├── autonomy_mastery_sub.RDS
+│   │   │   ├── autonomy_purpose_sub.RDS
+│   │   │   ├── autonomy_PWB_sub.RDS
+│   │   │   ├── autonomy_relationships_sub.RDS
+│   │   │   ├── autonomy_subscale_df.RDS
+│   │   │   └── autonomy_SWLS_sub.RDS
+│   │   ├── growth
+│   │   │   ├── growth_acceptance_sub.RDS
+│   │   │   ├── growth_autonomy_sub.RDS
+│   │   │   ├── growth_growth_sub.RDS
+│   │   │   ├── growth_mastery_sub.RDS
+│   │   │   ├── growth_purpose_sub.RDS
+│   │   │   ├── growth_PWB_sub.RDS
+│   │   │   ├── growth_relationships_sub.RDS
+│   │   │   ├── growth_results.RDS
+│   │   │   └── growth_SWLS_sub.RDS
+│   │   ├── growthgrowth_results.RDS
+│   │   ├── purpose
+│   │   │   ├── purpose_acceptance_sub.RDS
+│   │   │   ├── purpose_autonomy_sub.RDS
+│   │   │   ├── purpose_growth_sub.RDS
+│   │   │   ├── purpose_mastery_sub.RDS
+│   │   │   ├── purpose_purpose_sub.RDS
+│   │   │   ├── purpose_PWB_sub.RDS
+│   │   │   ├── purpose_relationships_sub.RDS
+│   │   │   ├── purpose_results.RDS
+│   │   │   ├── purpose_SWLS_sub.RDS
+│   │   │   └── relations_results.RDS
+│   │   └── relations
+│   │       ├── relations_acceptance_sub.RDS
+│   │       ├── relations_autonomy_sub.RDS
+│   │       ├── relations_growth_sub.RDS
+│   │       ├── relations_mastery_sub.RDS
+│   │       ├── relations_purpose_sub.RDS
+│   │       ├── relations_PWB_sub.RDS
+│   │       ├── relations_relationships_sub.RDS
+│   │       ├── relations_results.RDS
+│   │       └── relations_SWLS_sub.RDS
+│   ├── Study2
+│   │   ├── Audio_Only_autonomy_subscale.RDS
+│   │   ├── Audio_Only_SWLS_subscale.RDS
+│   │   ├── Autonomy_subscale_results.RDS
+│   │   ├── autonomy_subscale.RDS
+│   │   ├── study2_all_effects.RDS
+│   │   ├── SWLS_subscale_results.RDS
+│   │   ├── SWLS_subscale.RDS
+│   │   ├── Text_Only_autonomy_subscale.RDS
+│   │   └── Text_Only_SWLS_subscale.RDS
+│   └── Study3
+│       ├── autonomy
+│       │   ├── autonomy_acceptance.rds
+│       │   ├── autonomy_autonomy.RDS
+│       │   ├── autonomy_mastery.rds
+│       │   ├── autonomy_personal_growth.rds
+│       │   ├── autonomy_purpose.rds
+│       │   ├── autonomy_pwb.rds
+│       │   ├── autonomy_relations.rds
+│       │   ├── autonomy_subscale_df.RDS
+│       │   └── autonomy_swls.rds
+│       ├── Autonomy_subscale_results
+│       ├── Autonomy_subscale_results.RDS
+│       ├── autonomy_subscale.RDS
+│       ├── study3_all_effects.RDS
+│       ├── SWL
+│       │   ├── SWL_subscale_df.RDS
+│       │   ├── swls_acceptance.rds
+│       │   ├── swls_autonomy.rds
+│       │   ├── swls_mastery.rds
+│       │   ├── swls_personal_growth.rds
+│       │   ├── swls_purpose.rds
+│       │   ├── swls_pwb.rds
+│       │   ├── swls_relations.rds
+│       │   └── swls_swls.rds
+│       ├── SWLS_subscale_results.RDS
+│       └── SWLS_subscale.RDS
+├── README.md
 ├── Study1
 │   ├── LP2 Subscale-level Visualization.Rmd
 │   ├── LP2-embeddings-bert-large-uncased.R
-│   ├── Study1-Post-subscale.Rmd
 │   ├── Study1-item-level-prediction.Rmd
 │   ├── Study1-post-item-level-prediction.Rmd
+│   ├── Study1-Post-subscale.Rmd
 │   ├── Study1-subscale-prediction.Rmd
-│   ├── TESTING_Study1_Post_Embeddings.R
-│   └── subscale-prediction-code-post
-│       ├── Accept-subscale-prediction.R
-│       ├── Autonomy-Cross-Subscale.R
-│       ├── Cleaning-Phonic-Data.R
-│       ├── Growth-Cross-Subscale.R
-│       ├── Pos-Affect-Cross-Subscale.R
-│       ├── Purpose_Subscale_Prediction.R
-│       ├── Relations-cross-subscale.R
-│       └── post-subscale-prediction.Rmd
+│   ├── subscale-prediction-code-post
+│   │   ├── Accept-subscale-prediction.R
+│   │   ├── Autonomy-Cross-Subscale.R
+│   │   ├── Cleaning-Phonic-Data.R
+│   │   ├── Growth-Cross-Subscale.R
+│   │   ├── Pos-Affect-Cross-Subscale.R
+│   │   ├── post-subscale-prediction.Rmd
+│   │   ├── Purpose_Subscale_Prediction.R
+│   │   └── Relations-cross-subscale.R
+│   └── TESTING_Study1_Post_Embeddings.R
 ├── Study2
 │   ├── Cleaning
 │   │   └── LP2-Wellbeing-Prediction-Cleaning.Rmd
-│   ├── Study2-Wellbeing-Prediction-Subscale.Rmd
-│   ├── Study2_comparing-methods.Rmd
-│   ├── bootstrapping-markdown.Rmd
 │   ├── comparing-methods.Rmd
+│   ├── Study2_comparing-methods.Rmd
+│   ├── Study2-bootstrapping.Rmd
+│   ├── Study2-Wellbeing-Prediction-Subscale.Rmd
 │   └── text-wb-harmassessment.Rmd
 ├── Study3
 │   ├── Cleaning
@@ -83,23 +200,29 @@ To run all studies:
 │   ├── Study-3-WBP-Cleaning.Rmd
 │   ├── Study3-WBP.Rmd
 │   └── WBP-Study-3-Embeddings.R
-├── Supplemental-Info
-│   ├── Study-1
-│   │   └── Study-1-LIWC-Vars.Rmd
-│   └── subscale-prediction-code
-│       ├── Accept-subscale-prediction.R
-│       ├── Autonomy-Cross-Subscale.R
-│       ├── Cleaning-Phonic-Data.R
-│       ├── Growth-Cross-Subscale.R
-│       ├── Pos-Affect-Cross-Subscale.R
-│       ├── Purpose_Subscale_Prediction.R
-│       ├── Relations-cross-subscale.R
-│       └── subscale-prediction.Rmd
-└── data
-    ├── WBP_Study1_Cleaned.csv
-    ├── WBP_Study2_Behavioral_Cleaned.csv
-    ├── WBP_Study2_Text_cleaned.csv
-    ├── WBP_Study2_items.csv
-    ├── WBP_Study3_Behavioral_Cleaned.csv
-    └── WBP_Study3_Behavioral_Cleaned_items.csv
+└── Supplemental-Info
+    ├── deploy-models
+    │   └── deploy-models.R
+    ├── Embedding-viz
+    │   ├── LIWC_Study2_3_combined_words.csv
+    │   ├── Study2_3_combined_words.csv
+    │   ├── study2_autonomy_autonomy_in_embedding_space.csv
+    │   ├── study2_SWLS_SWLS_in_embedding_space.csv
+    │   ├── study3_autonomy_autonomy_in_embedding_space.csv
+    │   ├── study3_SWLS_SWLS_high_low_in_embedding_space.csv
+    │   └── Word-viz.Rmd
+    ├── GPT-Comparison
+    │   ├── GPT-Comparison.Rmd
+    │   └── WBP-GPT-Pipeline.ipynb
+    ├── Study-1
+    │   └── Study-1-LIWC-Vars.Rmd
+    └── subscale-prediction-code
+        ├── Accept-subscale-prediction.R
+        ├── Autonomy-Cross-Subscale.R
+        ├── Cleaning-Phonic-Data.R
+        ├── Growth-Cross-Subscale.R
+        ├── Pos-Affect-Cross-Subscale.R
+        ├── Purpose_Subscale_Prediction.R
+        ├── Relations-cross-subscale.R
+        └── subscale-prediction.Rmd
 ```
