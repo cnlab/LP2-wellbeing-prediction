@@ -758,7 +758,7 @@ pos_affect_SWLS = ggplot(sig_high_low) +
     aes(x, y, label = label),
     vjust = 1.5
   ) +
-  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "purple4")) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
   scale_x_continuous(expand = c(0.0, 1)) +
   scale_y_continuous(expand = c(0.0, 1)) +
   scale_size_continuous(range = c(3, 6)) +
@@ -835,7 +835,7 @@ pos_affect_pwb = ggplot(sig_high_low) +
     aes(x, y, label = label),
     vjust = 1.5
   ) +
-  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "purple4")) +
+  scale_color_manual(name = 'Score', values = c("Low" = "red4", "High" = "green4")) +
   scale_x_continuous(expand = c(0.0, 1)) +
   scale_y_continuous(expand = c(0.0, 1)) +
   scale_size_continuous(range = c(3, 6)) +
@@ -905,7 +905,7 @@ combined_plot_with_title
 
 # Study 2 {.tabset}
 
-```{r eval=FALSE, include=FALSE}
+```{r}
 
 data_dir="/Users/sm9518/Library/CloudStorage/Box-Box/LP2/well-being-prediction"
 df = read.csv(file.path(data_dir,"data/osf/data/WBP_Study2_Behavioral_Cleaned.csv"))
@@ -1055,7 +1055,7 @@ generate_projection_plot <- function(x, x_label, word_column, embedding_name, mo
       position_jitter_width = 0.5,
       arrow_transparency = 0,
       points_without_words_alpha = 0,
-      remove_words = c(".", "-",",","`",",","(",")")
+      remove_words = c(".", "-",",","`",",","(",")","ii","et","sa","yo")
     )
     
     dir.create(dirname(file_path), showWarnings = FALSE, recursive = TRUE)
@@ -1793,7 +1793,7 @@ generate_projection_plot <- function(x, x_label, word_column, embedding_name, mo
       position_jitter_width = 0.5,
       arrow_transparency = 0,
       points_without_words_alpha = 0,
-      remove_words = c(".", "-",",","`",",","(",")")
+      remove_words = c(".", "-",",","`",",","(",")","ii","et","sa","yo","ib")
     )
     
     dir.create(dirname(file_path), showWarnings = FALSE, recursive = TRUE)
@@ -2484,7 +2484,7 @@ combined_plot_with_title
 
 # Study 3
 
-```{r eval=FALSE, include=FALSE}
+```{r}
 
 generate_projection_plot <- function(x, x_label, word_column, embedding_name, model_dir = "~/Desktop/LP2-wellbeing-prediction/models/Study3/SWL/SDP") {
   
@@ -2575,7 +2575,6 @@ generate_projection_plot <- function(x, x_label, word_column, embedding_name, mo
 
 ## Satisfaction with Life {.tabset}
 
-
 ```{r SWLS-SDP}
 
 data_dir="~/Desktop/LP2-wellbeing-prediction" # set file path 
@@ -2656,7 +2655,7 @@ words = sig_high_low |>
 
 
 #plot
-SWLS_SWLS = ggplot(sig_high_low) +
+SWLS_SWLS_study3 = ggplot(sig_high_low) +
   geom_point(aes(x_plotted, y = 0 , color = with_without), size = 0.5) +
   geom_text_repel(
     aes(
@@ -2697,7 +2696,7 @@ SWLS_SWLS = ggplot(sig_high_low) +
   ) +
   plot_aes
 
-SWLS_SWLS_words
+SWLS_SWLS_study3
 
 SWLS_SWLS_words = sig_high_low |> 
   select(words,n,mean_dot_x,fisher_p_values_dot_x,with_without) |> 
@@ -3246,7 +3245,7 @@ SWLS_mastery
 
 ```{r study3-swl-sdp, fig.height=9, fig.width=18}
 
-plot_list <- list(SWLS_SWLS, SWLS_accpt, SWLS_purpose, SWLS_relations,
+plot_list <- list(SWLS_SWLS_study3, SWLS_accpt, SWLS_purpose, SWLS_relations,
                    SWLS_growth, SWLS_autonomy, SWLS_pwb, SWLS_mastery)
 
 combined_plot <- ggarrange(plotlist = plot_list,
@@ -4020,9 +4019,9 @@ combined_plot_with_title
 
 ```{r study3-swl-autonomy-sdp, fig.height=10, fig.width=8}
 
-plot_list <- list(autonomy_autonomy, SWLS_SWLS)
+study3plot_list <- list(autonomy_autonomy, SWLS_SWLS_study3)
 
-combined_plot <- ggarrange(plotlist = plot_list,
+study3combined_plot <- ggarrange(plotlist = study3plot_list,
                            ncol = 1, nrow = 2,
                            labels = letters[1:length(plot_list)],
                            label.x = 0.05,   # optional: adjust label position
@@ -4031,8 +4030,8 @@ combined_plot <- ggarrange(plotlist = plot_list,
                            legend = "bottom",
                            font.label = list(size = 18, family = "Futura Medium", face = "bold"))
 
-combined_plot_with_title <- annotate_figure(
-  combined_plot,
+study3combined_plot_with_title <- annotate_figure(
+  study3combined_plot,
   top = text_grob(
     "Study 3 Supervised Dimension Projection", 
     color = "black", 
@@ -4042,7 +4041,7 @@ combined_plot_with_title <- annotate_figure(
   )
 )
 
-combined_plot_with_title
+study3combined_plot_with_title
 ```
 
 
