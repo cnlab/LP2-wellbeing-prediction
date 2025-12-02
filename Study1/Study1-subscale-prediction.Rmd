@@ -37,6 +37,7 @@ pacman::p_load(tidyverse,rlang, plotrix, ggpubr, caret, broom, kableExtra, react
 
 #install.packages("text")
 #devtools::install_github("oscarkjell/text")
+Sys.setenv(KMP_DUPLICATE_LIB_OK = "TRUE") #Temporarily allows execution despite duplicate OpenMP libraries bc with M series chips no other work around
 library(text)
 textrpp_install(prompt = F)
 textrpp_initialize()
@@ -1027,12 +1028,16 @@ combined_df <- combined_df %>%
     TRUE ~ outcome  # Keep original value if it doesn't match
   ))
 
+
 all_heat <- ggplot(combined_df, aes(x = prompt, y = outcome, fill = r)) +
   geom_tile(color = "white") +
-     geom_text(aes(label = paste0(round(r, 2), "(", round(r_disattenuated, 2), ")"),
+  geom_text(aes(label = paste0(round(r, 2), "(", round(r_disattenuated, 2), ")"),
               fontface = ifelse(p.value < 0.05, "bold", "plain")),
-          color = "black", size = 3.5) + 
-  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+          color = "black", size = 2.95) + 
+  geom_text(aes(label = sprintf("95%%CI: [%.2f, %.2f]", conf.int_low, conf.int_high)), 
+            color = "black", size = 2.5, vjust = 2) +  # Add CI below RMSE
+  geom_text(aes(label = sprintf("RMSE: [%s]", round(RMSE, 3))), 
+            color = "gray30", size = 2.5, vjust = 3.5) +
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -1049,8 +1054,5 @@ all_heat <- ggplot(combined_df, aes(x = prompt, y = outcome, fill = r)) +
   theme(
     plot.title = element_text(hjust = 0.5, vjust = 1.5)
   )
-
 all_heat
-
 ```
-

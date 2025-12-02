@@ -221,56 +221,56 @@ SWLS_Audio_SWLS_mean_df<- as.data.frame(all_errors$`SWLS mean`$`embeddings$texts
 text_errors_SWLS = SWLS_Text_SWLS_mean_df$`all_errors$\`SWLS mean\`$\`embeddings$texts$SWLS_SWLS mean_pred\``
 audio_errors_SWLS = SWLS_Audio_SWLS_mean_df$`all_errors$\`SWLS mean\`$\`embeddings$texts$SWLS_SWLS mean_pred\``
 
-SWLS_SWLS = t.test(text_errors_SWLS, audio_errors_SWLS, var.equal = TRUE)
+SWLS_SWLS = t.test(text_errors_SWLS, audio_errors_SWLS, var.equal = F)
 mean_text_SWLS = mean(text_errors_SWLS)
 mean_audio_SWLS = mean(audio_errors_SWLS)
 
 text_errors_autonomy = SWLS_Text_PWB_autonomy_df$`all_errors$\`PWB autonomy\`$\`embeddings$texts$SWLS_PWB autonomy_pred\``
 audio_errors_autonomy = SWLS_Audio_PWB_autonomy_df$`all_errors$\`PWB autonomy\`$\`embeddings$texts$SWLS_PWB autonomy_pred\``
 
-SWLS_autonomy = t.test(text_errors_autonomy, audio_errors_autonomy, var.equal = TRUE)
+SWLS_autonomy = t.test(text_errors_autonomy, audio_errors_autonomy, var.equal = F)
 mean_text_autonomy = mean(text_errors_autonomy)
 mean_audio_autonomy = mean(audio_errors_autonomy)
 
 text_errors_PWB = SWLS_Text_PWB_mean_df$`all_errors$\`PWB mean\`$\`embeddings$texts$SWLS_PWB mean_pred\``
 audio_errors_PWB = SWLS_Audio_PWB_mean_df$`all_errors$\`PWB mean\`$\`embeddings$texts$SWLS_PWB mean_pred\``
 
-SWLS_PWB = t.test(text_errors_PWB, audio_errors_PWB, var.equal = TRUE)
+SWLS_PWB = t.test(text_errors_PWB, audio_errors_PWB, var.equal = F)
 mean_text_PWB = mean(text_errors_PWB)
 mean_audio_PWB = mean(audio_errors_PWB)
 
 text_errors_pos_relations = SWLS_Text_PWB_positive_relations_df$`all_errors$\`PWB positive_relations\`$\`embeddings$texts$SWLS_PWB positive_relations_pred\``
 audio_errors_pos_relations = SWLS_Audio_PWB_positive_relations_df$`all_errors$\`PWB positive_relations\`$\`embeddings$texts$SWLS_PWB positive_relations_pred\``
 
-SWLS_pos_relations = t.test(text_errors_pos_relations, audio_errors_pos_relations, var.equal = TRUE)
+SWLS_pos_relations = t.test(text_errors_pos_relations, audio_errors_pos_relations, var.equal = F)
 mean_text_pos_relations = mean(text_errors_pos_relations)
 mean_audio_pos_relations = mean(audio_errors_pos_relations)
 
 text_errors_env_master = SWLS_Text_PWB_environmental_mastery_df$`all_errors$\`PWB environmental_mastery\`$\`embeddings$texts$SWLS_PWB environmental_mastery_pred\``
 audio_errors_env_master = SWLS_Audio_PWB_environmental_mastery_df$`all_errors$\`PWB environmental_mastery\`$\`embeddings$texts$SWLS_PWB environmental_mastery_pred\``
 
-SWLS_env_master = t.test(text_errors_env_master, audio_errors_env_master, var.equal = TRUE)
+SWLS_env_master = t.test(text_errors_env_master, audio_errors_env_master, var.equal = F)
 mean_text_env_master = mean(text_errors_env_master)
 mean_audio_env_master = mean(audio_errors_env_master)
 
 text_errors_personal = SWLS_Text_PWB_personal_growth_df$`all_errors$\`PWB personal_growth\`$\`embeddings$texts$SWLS_PWB personal_growth_pred\``
 audio_errors_personal = SWLS_Audio_PWB_personal_growth_df$`all_errors$\`PWB personal_growth\`$\`embeddings$texts$SWLS_PWB personal_growth_pred\``
 
-SWLS_personal = t.test(text_errors_personal, audio_errors_personal, var.equal = TRUE)
+SWLS_personal = t.test(text_errors_personal, audio_errors_personal, var.equal = F)
 mean_text_personal = mean(text_errors_personal)
 mean_audio_personal = mean(audio_errors_personal)
 # 
 text_errors_purpose = SWLS_Text_PWB_purpose_df$`all_errors$\`PWB purpose\`$\`embeddings$texts$SWLS_PWB purpose_pred\``
 audio_errors_purpose = SWLS_Audio_PWB_purpose_df$`all_errors$\`PWB purpose\`$\`embeddings$texts$SWLS_PWB purpose_pred\``
 
-SWLS_purpose = t.test(text_errors_purpose, audio_errors_purpose, var.equal = TRUE)
+SWLS_purpose = t.test(text_errors_purpose, audio_errors_purpose, var.equal = F)
 mean_text_purpose = mean(text_errors_purpose)
 mean_audio_purpose = mean(audio_errors_purpose)
 
 text_errors_accept = SWLS_Text_PWB_self_acceptance_df$`all_errors$\`PWB self_acceptance\`$\`embeddings$texts$SWLS_PWB self_acceptance\``
 audio_errors_accept = SWLS_Audio_PWB_self_acceptance_df$`all_errors$\`PWB self_acceptance\`$\`embeddings$texts$SWLS_PWB self_acceptance\``
 
-SWLS_accept = t.test(text_errors_accept, audio_errors_accept, var.equal = TRUE)
+SWLS_accept = t.test(text_errors_accept, audio_errors_accept, var.equal = F)
 mean_text_accept = mean(text_errors_accept)
 mean_audio_accept = mean(audio_errors_accept)
 
@@ -307,13 +307,15 @@ results_df$cohens_d <- c(d_SWLS, d_autonomy, d_PWB, d_pos_relations, d_env_maste
 
 # Round the necessary columns
 SWLS_model_errors <- results_df %>% 
-  dplyr::select(Measure, mean_text, mean_audio, df, t_statistic, p_value, p_adjusted,cohens_d) %>% 
+  dplyr::select(Measure, mean_text, mean_audio, df, t_statistic, p_value, p_adjusted,cohens_d,conf_int_lower,conf_int_upper) %>% 
   mutate(mean_text = round(as.numeric(mean_text), 2),
          mean_audio = round(as.numeric(mean_audio), 2),
          df = round(as.numeric(df), 2),
          t_statistic = round(as.numeric(t_statistic), 2),
          p_value = round(as.numeric(p_value), 3),
          p_adjusted = round(as.numeric(p_adjusted), 3),
+         conf_int_lower = round(as.numeric(conf_int_lower), 3),
+         conf_int_upper = round(as.numeric(conf_int_upper), 3),
          cohens_d = round(as.numeric(cohens_d), 3))
 
 # Display the data frame
@@ -333,7 +335,6 @@ write.csv(SWLS_model_errors,"SWLS_model_errors.csv")
 ```{r load autonomy text only data}
 data_dir="~/Desktop/LP2-wellbeing-prediction"
 df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
-
 
 df = df %>% 
   dplyr::select(pID, score, measure) %>% 
@@ -363,8 +364,6 @@ text_grouped <- text %>%
 text_embed_text_only <- text_grouped %>%
   spread(key = prompt, value = text_combined)
 
-
-
 text_embed_pids <- unique(text_embed_text_only$pID)
 
 # Filter df to include only rows with pID in text_embed_pids
@@ -375,8 +374,10 @@ Autonomy_subscale_Text = readRDS(file.path(data_dir,"/supp/embeddings/Text_Only_
 
 ```
 
+
 ```{r}
 data = df %>% 
+  filter(pID %in% text_embed_pids) %>%
   dplyr::select(-pID) 
 
 results <- list()
@@ -389,7 +390,6 @@ filtered_predictions <- na.omit(Autonomy_subscale_Text$predictions[1:8])
 Autonomy_subscale_predictions <- as.data.frame(filtered_predictions)
 models <- c(colnames(Autonomy_subscale_Text$predictions[1:8]))
 
-data = data
 
 
 for (column_name in column_names) {
@@ -504,56 +504,56 @@ library(DT)
 text_errors_SWLS = Autonomy_Text_SWLS_mean_df$`all_errors$\`SWLS mean\`$\`embeddings$texts$Autonomy_SWLS mean_pred\``
 audio_errors_SWLS = Autonomy_Audio_SWLS_mean_df$`all_errors$\`SWLS mean\`$\`embeddings$texts$Autonomy_SWLS mean_pred\``
 
-SWLS_SWLS = t.test(text_errors_SWLS, audio_errors_SWLS, var.equal = T)
+SWLS_SWLS = t.test(text_errors_SWLS, audio_errors_SWLS, var.equal = F)
 mean_text_SWLS = mean(text_errors_SWLS)
 mean_audio_SWLS = mean(audio_errors_SWLS)
 
 text_errors_autonomy = Autonomy_Text_PWB_autonomy_df$`all_errors$\`PWB autonomy\`$\`embeddings$texts$Autonomy_PWB autonomy_pred\``
 audio_errors_autonomy = Autonomy_Audio_PWB_autonomy_df$`all_errors$\`PWB autonomy\`$\`embeddings$texts$Autonomy_PWB autonomy_pred\``
 
-SWLS_autonomy = t.test(text_errors_autonomy, audio_errors_autonomy, var.equal = T)
+SWLS_autonomy = t.test(text_errors_autonomy, audio_errors_autonomy, var.equal = F)
 mean_text_autonomy = mean(text_errors_autonomy)
 mean_audio_autonomy = mean(audio_errors_autonomy)
 
 text_errors_PWB = Autonomy_Text_PWB_mean_df$`all_errors$\`PWB mean\`$\`embeddings$texts$Autonomy_PWB mean_pred\``
 audio_errors_PWB = Autonomy_Audio_PWB_mean_df$`all_errors$\`PWB mean\`$\`embeddings$texts$Autonomy_PWB mean_pred\``
 
-SWLS_PWB = t.test(text_errors_PWB, audio_errors_PWB, var.equal = T)
+SWLS_PWB = t.test(text_errors_PWB, audio_errors_PWB, var.equal = F)
 mean_text_PWB = mean(text_errors_PWB)
 mean_audio_PWB = mean(audio_errors_PWB)
 
 text_errors_pos_relations = Autonomy_Text_PWB_positive_relations_df$`all_errors$\`PWB positive_relations\`$\`embeddings$texts$Autonomy_PWB positive_relations_pred\``
 audio_errors_pos_relations = Autonomy_Audio_PWB_positive_relations_df$`all_errors$\`PWB positive_relations\`$\`embeddings$texts$Autonomy_PWB positive_relations_pred\``
 
-SWLS_pos_relations = t.test(text_errors_pos_relations, audio_errors_pos_relations, var.equal = T)
+SWLS_pos_relations = t.test(text_errors_pos_relations, audio_errors_pos_relations, var.equal = F)
 mean_text_pos_relations = mean(text_errors_pos_relations)
 mean_audio_pos_relations = mean(audio_errors_pos_relations)
 
 text_errors_env_master = Autonomy_Text_PWB_environmental_mastery_df$`all_errors$\`PWB environmental_mastery\`$\`embeddings$texts$Autonomy_PWB environmental_mastery_pred\``
 audio_errors_env_master = Autonomy_Audio_PWB_environmental_mastery_df$`all_errors$\`PWB environmental_mastery\`$\`embeddings$texts$Autonomy_PWB environmental_mastery_pred\``
 
-SWLS_env_master = t.test(text_errors_env_master, audio_errors_env_master, var.equal = T)
+SWLS_env_master = t.test(text_errors_env_master, audio_errors_env_master, var.equal = F)
 mean_text_env_master = mean(text_errors_env_master)
 mean_audio_env_master = mean(audio_errors_env_master)
 
 text_errors_personal = Autonomy_Text_PWB_personal_growth_df$`all_errors$\`PWB personal_growth\`$\`embeddings$texts$Autonomy_PWB personal_growth_pred\``
 audio_errors_personal = Autonomy_Audio_PWB_personal_growth_df$`all_errors$\`PWB personal_growth\`$\`embeddings$texts$Autonomy_PWB personal_growth_pred\``
 
-SWLS_personal = t.test(text_errors_personal, audio_errors_personal, var.equal = T)
+SWLS_personal = t.test(text_errors_personal, audio_errors_personal, var.equal = F)
 mean_text_personal = mean(text_errors_personal)
 mean_audio_personal = mean(audio_errors_personal)
 
 text_errors_purpose = Autonomy_Text_PWB_purpose_df$`all_errors$\`PWB purpose\`$\`embeddings$texts$Autonomy_PWB purpose_pred\``
 audio_errors_purpose = Autonomy_Audio_PWB_purpose_df$`all_errors$\`PWB purpose\`$\`embeddings$texts$Autonomy_PWB purpose_pred\``
 
-SWLS_purpose = t.test(text_errors_purpose, audio_errors_purpose, var.equal = T)
+SWLS_purpose = t.test(text_errors_purpose, audio_errors_purpose, var.equal = F)
 mean_text_purpose = mean(text_errors_purpose)
 mean_audio_purpose = mean(audio_errors_purpose)
 
 text_errors_accept = Autonomy_Text_PWB_self_acceptance_df$`all_errors$\`PWB self_acceptance\`$\`embeddings$texts$Autonomy_PWB self_acceptance\``
 audio_errors_accept = Autonomy_Audio_PWB_self_acceptance_df$`all_errors$\`PWB self_acceptance\`$\`embeddings$texts$Autonomy_PWB self_acceptance\``
 
-SWLS_accept = t.test(text_errors_accept, audio_errors_accept, var.equal = T)
+SWLS_accept = t.test(text_errors_accept, audio_errors_accept, var.equal = F)
 mean_text_accept = mean(text_errors_accept)
 mean_audio_accept = mean(audio_errors_accept)
 
@@ -588,16 +588,16 @@ results_df$cohens_d <- c(d_SWLS, d_autonomy, d_PWB, d_pos_relations, d_env_maste
 
 # Then do your rounding and select columns including cohens_d
 Autonomy_model_errors <- results_df %>% 
-  dplyr::select(Measure, mean_text, mean_audio, df, t_statistic, p_value, p_adjusted, cohens_d) %>% 
-  mutate(
-    mean_text = round(as.numeric(mean_text), 2),
-    mean_audio = round(as.numeric(mean_audio), 2),
-    df = round(as.numeric(df), 2),
-    t_statistic = round(as.numeric(t_statistic), 2),
-    p_value = round(as.numeric(p_value), 3),
-    p_adjusted = round(as.numeric(p_adjusted), 3),
-    cohens_d = round(as.numeric(cohens_d), 3)
-  )
+  dplyr::select(Measure, mean_text, mean_audio, df, t_statistic, p_value, p_adjusted,cohens_d,conf_int_lower,conf_int_upper) %>% 
+  mutate(mean_text = round(as.numeric(mean_text), 2),
+         mean_audio = round(as.numeric(mean_audio), 2),
+         df = round(as.numeric(df), 2),
+         t_statistic = round(as.numeric(t_statistic), 2),
+         p_value = round(as.numeric(p_value), 3),
+         p_adjusted = round(as.numeric(p_adjusted), 3),
+         conf_int_lower = round(as.numeric(conf_int_lower), 3),
+         conf_int_upper = round(as.numeric(conf_int_upper), 3),
+         cohens_d = round(as.numeric(cohens_d), 3))
 
 # View and save
 datatable(Autonomy_model_errors, extensions = 'FixedColumns', 
@@ -653,7 +653,7 @@ ggplot(power_df, aes(x = cohens_d, y = power)) +
   labs(
     x = "Cohen's d (Standardized Mean Difference)",
     y = "Statistical Power",
-    title = "Power to Detect Differences in Cohen's d"
+    title = "Power to Detect Differences in Methods"
   ) +
   ylim(0, 1) +
   theme_minimal()

@@ -358,6 +358,48 @@ SWLS_rmse <- results %>%
 SWLS_subscale_results <- head(SWLS_subscale$results, 8)
 SWLS_subscale_results$RMSE <- SWLS_rmse$RMSE
 
+##extract information for heatmap - NOW INCLUDING CONFIDENCE INTERVALS
+result_list_swls <- list(
+  SWLS_acceptance = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB self_acceptance`$results,
+  SWLS_autonomy = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB autonomy`$results,
+  SWLS_growth = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB personal_growth`$results,
+  SWLS_purpose = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB purpose`$results,
+  SWLS_relationships = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB positive_relations`$results,
+  SWLS_PWB = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB mean`$results,
+  SWLS_SWLS = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_SWLS mean`$results,
+  SWLS_mastery = SWLS_subscale$all_output$`embeddings$texts$\`SWLS-Text\`_PWB environmental_mastery`$results
+)
+
+# Extract confidence intervals
+SWLS_ci_data <- data.frame(
+  model = names(result_list_swls),
+  conf.int_low = sapply(result_list_swls, function(x) x$conf.int[1]),
+  conf.int_high = sapply(result_list_swls, function(x) x$conf.int[2])
+) %>%
+  mutate(
+    # Map the model names to match the outcome format in SWLS_subscale_results
+    outcome = case_when(
+      model == "SWLS_acceptance" ~ "PWB self_acceptance",
+      model == "SWLS_autonomy" ~ "PWB autonomy",
+      model == "SWLS_growth" ~ "PWB personal_growth",
+      model == "SWLS_purpose" ~ "PWB purpose",
+      model == "SWLS_relationships" ~ "PWB positive_relations",
+      model == "SWLS_PWB" ~ "PWB mean",
+      model == "SWLS_SWLS" ~ "SWLS mean",
+      model == "SWLS_mastery" ~ "PWB environmental_mastery"
+    )
+  )
+
+SWLS_subscale_results <- 
+  SWLS_subscale_results %>%
+  mutate(
+    prompt = ifelse(grepl("SWLS", descriptions), "SWLS", NA),
+    outcome = ifelse(grepl("embeddings\\$texts\\$`SWLS-Text`_", descriptions), 
+                     gsub(".*`SWLS-Text`_", "", descriptions),
+                     NA)) |> 
+  left_join(SWLS_ci_data %>% select(outcome, conf.int_low, conf.int_high), by = "outcome")
+
+
 
 ###extract information for heatmap
 SWLS_subscale_results <- 
@@ -416,11 +458,14 @@ SWLS_subscale_results <- SWLS_subscale_results |>
   ))
 
 SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
-  geom_tile(color = "white") +
+ geom_tile(color = "white") +
   geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
               fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
-          color = "black", size = 3.5) +
-  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+          color = "black", size = 2.95) + 
+  geom_text(aes(label = sprintf("95%%CI: [%.2f, %.2f]", conf.int_low, conf.int_high)), 
+            color = "black", size = 2.5, vjust = 2) +  # Add CI below RMSE
+  geom_text(aes(label = sprintf("RMSE: [%s]", round(RMSE, 3))), 
+            color = "gray30", size = 2.5, vjust = 3.5) +
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -433,7 +478,7 @@ SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = c
   geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes
+  plot_aes +  theme(legend.position = "none")
 
 SWLS_heat
 ```
@@ -500,7 +545,36 @@ Autonomy_rmse <- results %>%
 Autonomy_subscale_results <- head(Autonomy_subscale$results, 8)
 Autonomy_subscale_results$RMSE <- Autonomy_rmse$RMSE
 
+result_list_autonomy <- list(
+  Autonomy_acceptance = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB self_acceptance`$results,
+  Autonomy_autonomy = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB autonomy`$results,
+  Autonomy_growth = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB personal_growth`$results,
+  Autonomy_purpose = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB purpose`$results,
+  Autonomy_relationships = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB positive_relations`$results,
+  Autonomy_PWB = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB mean`$results,
+  Autonomy_SWLS = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_SWLS mean`$results,
+  Autonomy_mastery = Autonomy_subscale$all_output$`embeddings$texts$\`Autonomy-Text\`_PWB environmental_mastery`$results
+)
 
+# Extract confidence intervals
+Autonomy_ci_data <- data.frame(
+  model = names(result_list_autonomy),
+  conf.int_low = sapply(result_list_autonomy, function(x) x$conf.int[1]),
+  conf.int_high = sapply(result_list_autonomy, function(x) x$conf.int[2])
+) |> 
+  mutate(
+    # Map the model names to match the outcome format in Autonomy_subscale_results
+    outcome = case_when(
+      model == "Autonomy_acceptance" ~ "PWB self_acceptance",
+      model == "Autonomy_autonomy" ~ "PWB autonomy",
+      model == "Autonomy_growth" ~ "PWB personal_growth",
+      model == "Autonomy_purpose" ~ "PWB purpose",
+      model == "Autonomy_relationships" ~ "PWB positive_relations",
+      model == "Autonomy_PWB" ~ "PWB mean",
+      model == "Autonomy_SWLS" ~ "SWLS mean",
+      model == "Autonomy_mastery" ~ "PWB environmental_mastery"
+    )
+  )
 
 Autonomy_subscale_results <- 
   Autonomy_subscale_results %>%
@@ -508,8 +582,9 @@ Autonomy_subscale_results <-
     prompt = ifelse(grepl("Autonomy-", descriptions), "Autonomy", NA),
     outcome = ifelse(grepl("embeddings\\$texts\\$`Autonomy-Text`_", descriptions), 
                      gsub(".*`Autonomy-Text`_", "", descriptions),
-                     NA)
-  )
+                     NA)) |> 
+  left_join(Autonomy_ci_data %>% select(outcome, conf.int_low, conf.int_high), by = "outcome")
+  
 
 
 Autonomy_subscale_results = Autonomy_subscale_results %>%
@@ -558,8 +633,11 @@ Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
   geom_tile(color = "white") +
   geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
               fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
-          color = "black", size = 3.5) +
-  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+          color = "black", size = 2.95) + 
+  geom_text(aes(label = sprintf("95%%CI: [%.2f, %.2f]", conf.int_low, conf.int_high)), 
+            color = "black", size = 2.5, vjust = 2) +  # Add CI below correlation
+  geom_text(aes(label = sprintf("RMSE: [%s]", round(RMSE, 3))), 
+            color = "gray30", size = 2.5, vjust = 3.5) +  # Add RMSE below CI
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -572,7 +650,8 @@ Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
   geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes
+  plot_aes +
+  theme(legend.position = "none")
 
 Autonomy_heat
 ```

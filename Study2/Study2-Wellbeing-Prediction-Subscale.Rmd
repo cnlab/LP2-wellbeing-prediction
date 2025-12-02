@@ -38,6 +38,7 @@ install.packages("devtools")
 devtools::install_version("text", version = "1.2.1", repos = "http://cran.us.r-project.org")
 
 #### as of 8/29 need to exclusively use version 1.2.1 to get around a fatal R issue
+Sys.setenv(KMP_DUPLICATE_LIB_OK = "TRUE") #Temporarily allows execution despite duplicate OpenMP libraries bc with M series chips no other work around
 
 library(text)
 textrpp_install(prompt = F)
@@ -97,6 +98,7 @@ table <- function(correlation_data) {
   correlation_data$p_value_corrected <- sapply(correlation_data$p_value_corrected, format_p_value)
   correlation_data$RMSE <- round(as.numeric(correlation_data$RMSE), 3)
   correlation_data$disattenuated_correlation <- round(as.numeric(correlation_data$disattenuated_correlation),3)
+  
 
   # Create the DataTable
   datatable(correlation_data, extensions = 'FixedColumns', 
@@ -115,27 +117,46 @@ data_dir="~/Desktop/LP2-wellbeing-prediction"
 df = read.csv(file.path(data_dir,"data/WBP_Study2_Behavioral_Cleaned.csv"))
 
 
+
 df = df %>% 
-  select(pID, score, measure) %>% 
+  dplyr::select(pID, score, measure) %>% 
    spread(key = measure, value = score)
 
 ###prep the text data 
 
 text = read.csv(file.path(data_dir,"data/WBP_Study2_Text_cleaned.csv"))
 
-text_grouped <- text %>%
+
+text_grouped <- text_correct %>%
   group_by(pID, prompt) %>%
   summarise(
-    text_combined = paste(text, collapse = " ")
-  ) %>%
-  ungroup()
-
+    text_combined = paste(text, collapse = " "),
+    .groups = "drop"
+  )
 # Reshape data from long to wide format
 text_embed <- text_grouped %>%
   spread(key = prompt, value = text_combined)
 
 
 text_embed_pids <- unique(text_embed$pID)
+
+
+text_embed_pids <- unique(text_embed$pID)
+
+text_pids = unique(text$pID)
+
+
+common_pids <- intersect(text_pids, text_embed_pids)
+cat("Number of pIDs in BOTH df and text_embed:", length(common_pids), "\n")
+cat("\n")
+
+
+text = text %>% 
+  filter(pID %in% common_pids)
+
+
+#write to csv 
+write_csv(text, file.path(data_dir,"data/WBP_Study2_Text_cleaned.csv"))
 
 # Filter df to include only rows with pID in text_embed_pids
 df <- df %>%
@@ -267,7 +288,8 @@ readr::write_csv(omega_results, "~/Desktop/LP2-wellbeing-prediction/Supplemental
 
 ```{r}
 text %>% 
-  select(pID, type) %>%
+  filter(pID %in% text_embed_pids) |> 
+  dplyr::select(pID, type) %>%
   group_by(type) %>%
   summarise(n = n_distinct(pID)) %>%
   ungroup() %>%
@@ -342,15 +364,47 @@ SWLS_subscale_results <- head(SWLS_subscale$results, 8)
 SWLS_subscale_results$RMSE <- SWLS_rmse$RMSE
 
 
-###extract information for heatmap
+###extract information for heatmap - NOW INCLUDING CONFIDENCE INTERVALS
+result_list_swls <- list(
+  SWLS_acceptance = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB self_acceptance`$results,
+  SWLS_autonomy = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB autonomy`$results,
+  SWLS_growth = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB personal_growth`$results,
+  SWLS_purpose = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB purpose`$results,
+  SWLS_relationships = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB positive_relations`$results,
+  SWLS_PWB = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB mean`$results,
+  SWLS_SWLS = SWLS_subscale$all_output$`embeddings$texts$SWLS_SWLS mean`$results,
+  SWLS_mastery = SWLS_subscale$all_output$`embeddings$texts$SWLS_PWB environmental_mastery`$results
+)
+
+# Extract confidence intervals
+SWLS_ci_data <- data.frame(
+  model = names(result_list_swls),
+  conf.int_low = sapply(result_list_swls, function(x) x$conf.int[1]),
+  conf.int_high = sapply(result_list_swls, function(x) x$conf.int[2])
+) %>%
+  mutate(
+    # Map the model names to match the outcome format in SWLS_subscale_results
+    outcome = case_when(
+      model == "SWLS_acceptance" ~ "PWB self_acceptance",
+      model == "SWLS_autonomy" ~ "PWB autonomy",
+      model == "SWLS_growth" ~ "PWB personal_growth",
+      model == "SWLS_purpose" ~ "PWB purpose",
+      model == "SWLS_relationships" ~ "PWB positive_relations",
+      model == "SWLS_PWB" ~ "PWB mean",
+      model == "SWLS_SWLS" ~ "SWLS mean",
+      model == "SWLS_mastery" ~ "PWB environmental_mastery"
+    )
+  )
+
 SWLS_subscale_results <- 
   SWLS_subscale_results %>%
   mutate(
     prompt = ifelse(grepl("SWLS_", descriptions), "SWLS", NA),
     outcome = ifelse(grepl("embeddings\\$texts\\$SWLS_", descriptions), 
                      gsub(".*SWLS_", "", descriptions),
-                     NA))
-
+                     NA)
+  ) %>%
+  left_join(SWLS_ci_data %>% select(outcome, conf.int_low, conf.int_high), by = "outcome")
 
 omega_results = omega_results |> 
   select(subscale,omega)
@@ -400,11 +454,14 @@ SWLS_subscale_results = SWLS_subscale_results |>
   ))
 
 SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
-  geom_tile(color = "white") +
+ geom_tile(color = "white") +
   geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
               fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
-          color = "black", size = 3.5) +
-  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+          color = "black", size = 2.95) + 
+  geom_text(aes(label = sprintf("95%%CI: [%.2f, %.2f]", conf.int_low, conf.int_high)), 
+            color = "black", size = 2.5, vjust = 2) +  # Add CI below RMSE
+  geom_text(aes(label = sprintf("RMSE: [%s]", round(RMSE, 3))), 
+            color = "gray30", size = 2.5, vjust = 3.5) +
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -417,7 +474,7 @@ SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = c
   geom_text(data = subset(SWLS_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes +   theme(legend.position = "none")
+  plot_aes +  theme(legend.position = "none")
 
 SWLS_heat
 ```
@@ -427,12 +484,11 @@ SWLS_heat
 ### Models
 
 ```{r}
-
-rds_file_path <- file.path(data_dir, "models/Study2/autonomy_subscale.RDS") #update with the path to each model
+rds_file_path <- file.path(data_dir, "models/Study2/autonomy_subscale.RDS")
 
 if (!file.exists(rds_file_path)) {
   Autonomy_subscale <- textTrainLists(
-    x = embeddings$texts$Autonomy, #use satifaction with life
+    x = embeddings$texts$Autonomy,
     y = df[2:9],
     force_train_method = "regression",
     save_output = "all",
@@ -441,12 +497,11 @@ if (!file.exists(rds_file_path)) {
     p_adjust_method = "fdr",
     model_description = "Autonomy embeddings predicting PWB and SWLS, N = 144"
   )
-   # Save the model output to an RDS file
-  saveRDS(Autonomy_subscale,rds_file_path)
+  saveRDS(Autonomy_subscale, rds_file_path)
 } else {
-  # If the RDS file already exists, load the data from it
   Autonomy_subscale <- readRDS(rds_file_path)
 }
+
 filtered_predictions <- na.omit(Autonomy_subscale$predictions[1:8])
 Autonomy_subscale_predictions <- as.data.frame(filtered_predictions)
 models <- c(colnames(Autonomy_subscale$predictions[1:8]))
@@ -461,15 +516,48 @@ for (column_name in column_names) {
     predicted_values = Autonomy_subscale_predictions
   )
   results <- c(results, result)
-  # Convert the results list to a data frame
+}
+
+# Convert the results list to a data frame
 Autonomy_rmse <- results %>%
   bind_rows() %>%
   distinct()
-}
 
 # Associate RMSE with subscale results
 Autonomy_subscale_results <- head(Autonomy_subscale$results, 8)
 Autonomy_subscale_results$RMSE <- Autonomy_rmse$RMSE
+
+###extract information for heatmap - NOW INCLUDING CONFIDENCE INTERVALS
+result_list_autonomy <- list(
+  Autonomy_acceptance = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB self_acceptance`$results,
+  Autonomy_autonomy = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB autonomy`$results,
+  Autonomy_growth = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB personal_growth`$results,
+  Autonomy_purpose = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB purpose`$results,
+  Autonomy_relationships = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB positive_relations`$results,
+  Autonomy_PWB = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB mean`$results,
+  Autonomy_SWLS = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_SWLS mean`$results,
+  Autonomy_mastery = Autonomy_subscale$all_output$`embeddings$texts$Autonomy_PWB environmental_mastery`$results
+)
+
+# Extract confidence intervals
+Autonomy_ci_data <- data.frame(
+  model = names(result_list_autonomy),
+  conf.int_low = sapply(result_list_autonomy, function(x) x$conf.int[1]),
+  conf.int_high = sapply(result_list_autonomy, function(x) x$conf.int[2])
+) %>%
+  mutate(
+    # Map the model names to match the outcome format in Autonomy_subscale_results
+    outcome = case_when(
+      model == "Autonomy_acceptance" ~ "PWB self_acceptance",
+      model == "Autonomy_autonomy" ~ "PWB autonomy",
+      model == "Autonomy_growth" ~ "PWB personal_growth",
+      model == "Autonomy_purpose" ~ "PWB purpose",
+      model == "Autonomy_relationships" ~ "PWB positive_relations",
+      model == "Autonomy_PWB" ~ "PWB mean",
+      model == "Autonomy_SWLS" ~ "SWLS mean",
+      model == "Autonomy_mastery" ~ "PWB environmental_mastery"
+    )
+  )
 
 Autonomy_subscale_results <- 
   Autonomy_subscale_results %>%
@@ -477,9 +565,13 @@ Autonomy_subscale_results <-
     prompt = ifelse(grepl("Autonomy_", descriptions), "Autonomy", NA),
     outcome = ifelse(grepl("embeddings\\$texts\\$Autonomy_", descriptions), 
                      gsub(".*Autonomy_", "", descriptions),
-                     NA))
+                     NA)
+  ) %>%
+  left_join(Autonomy_ci_data %>% select(outcome, conf.int_low, conf.int_high), by = "outcome")
 
+r_xx_predictor <- 1
 
+# Tidy pipeline
 Autonomy_subscale_results = Autonomy_subscale_results %>%
   # Join omega values by subscale/outcome
   left_join(omega_results %>% select(subscale, omega), 
@@ -520,13 +612,15 @@ Autonomy_subscale_results = Autonomy_subscale_results |>
     TRUE ~ outcome  # Keep original value if it doesn't match
   ))
 
-
 Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
-   geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
+  geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
               fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
-          color = "black", size = 3.5) +
-  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +
+          color = "black", size = 2.95) + 
+  geom_text(aes(label = sprintf("95%%CI: [%.2f, %.2f]", conf.int_low, conf.int_high)), 
+            color = "black", size = 2.5, vjust = 2) +  # Add CI below correlation
+  geom_text(aes(label = sprintf("RMSE: [%s]", round(RMSE, 3))), 
+            color = "gray30", size = 2.5, vjust = 3.5) +  # Add RMSE below CI
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -539,18 +633,18 @@ Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
   geom_text(data = subset(Autonomy_subscale_results, p_value_corrected < 0.001), 
             aes(label = "***", x = prompt, y = outcome, hjust = 1),
             color = "black", size = 4, vjust = -0.5) + 
-  plot_aes + theme(legend.position = "none")
+  plot_aes +
+  theme(legend.position = "none")
 
 Autonomy_heat
 ```
 
 ## All heatmaps (all data)
 
-```{r all-heat }
+```{r all-heat, fig.height=6, fig.width=8}
 all_heat = ggarrange(Autonomy_heat,SWLS_heat, ncol = 2,nrow = 1)
 
 all_heat +
-  ggtitle("Subscale Predictions") +
   theme(
     plot.title = element_text(hjust = 0.5, vjust = 1.5)
   ) + 
@@ -778,6 +872,11 @@ ggplot(plot_data, aes(x = r, y = outcome, xmin = conf.int_low, xmax = conf.int_h
 
 
 ```
+
+```{r}
+all_effects
+```
+
 
 ## All Results
 

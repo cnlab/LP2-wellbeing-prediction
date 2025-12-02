@@ -1,5 +1,5 @@
 ---
-title: "Study2: GPT Comparison"
+title: "Study3: GPT Comparison"
 author: ""
 date: "`r Sys.Date()`"
 output:
@@ -282,8 +282,11 @@ autonomy_gpt_heat <- ggplot(cor_summary, aes(x = prompt, y = outcome, fill = cor
   geom_tile(color = "white") +
   geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
               fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
-          color = "black", size = 3.5) +
-  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+          color = "black", size = 2.95) + 
+  geom_text(aes(label = sprintf("95%%CI: [%.2f, %.2f]", CI_lower, CI_upper)), 
+            color = "black", size = 2.5, vjust = 2) +  # Add CI below correlation
+  geom_text(aes(label = sprintf("RMSE: [%s]", round(RMSE, 3))), 
+            color = "gray30", size = 2.5, vjust = 3.5) +  # Add RMSE below CI
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -399,8 +402,11 @@ swl_gpt_heat <- ggplot(cor_summary, aes(x = prompt, y = outcome, fill = correlat
   geom_tile(color = "white") +
   geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
               fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
-          color = "black", size = 3.5) +
-  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+          color = "black", size = 2.95) + 
+  geom_text(aes(label = sprintf("95%%CI: [%.2f, %.2f]", CI_lower, CI_upper)), 
+            color = "black", size = 2.5, vjust = 2) +  # Add CI below correlation
+  geom_text(aes(label = sprintf("RMSE: [%s]", round(RMSE, 3))), 
+            color = "gray30", size = 2.5, vjust = 3.5) +  # Add RMSE below CI
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -557,8 +563,11 @@ autonomy_gpt_heat <- ggplot(cor_summary, aes(x = prompt, y = outcome, fill = cor
   geom_tile(color = "white") +
   geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
               fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
-          color = "black", size = 3.5) +
-  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+          color = "black", size = 2.95) + 
+  geom_text(aes(label = sprintf("95%%CI: [%.2f, %.2f]", CI_lower, CI_upper)), 
+            color = "black", size = 2.5, vjust = 2) +  # Add CI below correlation
+  geom_text(aes(label = sprintf("RMSE: [%s]", round(RMSE, 3))), 
+            color = "gray30", size = 2.5, vjust = 3.5) +  # Add RMSE below CI
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -674,8 +683,11 @@ swl_gpt_heat <- ggplot(cor_summary, aes(x = prompt, y = outcome, fill = correlat
   geom_tile(color = "white") +
   geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
               fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
-          color = "black", size = 3.5) +
-  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+          color = "black", size = 2.95) + 
+  geom_text(aes(label = sprintf("95%%CI: [%.2f, %.2f]", CI_lower, CI_upper)), 
+            color = "black", size = 2.5, vjust = 2) +  # Add CI below correlation
+  geom_text(aes(label = sprintf("RMSE: [%s]", round(RMSE, 3))), 
+            color = "gray30", size = 2.5, vjust = 3.5) +  # Add RMSE below CI
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -742,8 +754,11 @@ Autonomy_heat <- ggplot(Autonomy_subscale_results, aes(x = prompt, y = outcome, 
   geom_tile(color = "white") +
   geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
               fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
-          color = "black", size = 3.5) +
-  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+          color = "black", size = 2.95) + 
+  geom_text(aes(label = sprintf("95%%CI: [%.2f, %.2f]", conf.int_low , conf.int_high)), 
+            color = "black", size = 2.5, vjust = 2) +  # Add CI below correlation
+  geom_text(aes(label = sprintf("RMSE: [%s]", round(RMSE, 3))), 
+            color = "gray30", size = 2.5, vjust = 3.5) +  # Add RMSE below CI
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -788,8 +803,11 @@ SWLS_heat <- ggplot(SWLS_subscale_results, aes(x = prompt, y = outcome, fill = c
   geom_tile(color = "white") +
   geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
               fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
-          color = "black", size = 3.5) +
-  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))), color = "black", size = 3, vjust = 2) +  # Add RMSE values
+          color = "black", size = 2.95) + 
+  geom_text(aes(label = sprintf("95%%CI: [%.2f, %.2f]", conf.int_low, conf.int_high)), 
+            color = "black", size = 2.5, vjust = 2) +  # Add CI below correlation
+  geom_text(aes(label = sprintf("RMSE: [%s]", round(RMSE, 3))), 
+            color = "gray30", size = 2.5, vjust = 3.5) +  # Add RMSE below CI
   scale_fill_gradient2(low = "dodgerblue",
                        mid = "#FFFFCC",
                        high = "#c44536") +
@@ -835,9 +853,25 @@ all_heat <- ggarrange(
 all_heat
 ```
 
+
 ```{r fig.height=6, fig.width=9}
 
+#rename the ML model confidence interval columns for consistency
+bert_autonomy <- bert_autonomy %>%
+  rename(
+    CI_lower = `conf.int_low`,
+    CI_upper = `conf.int_high`
+  )
+
+bert_swls <- bert_swls %>%
+  rename(
+    CI_lower = `conf.int_low`,
+    CI_upper = `conf.int_high`
+  )
+
 # List of all input dataframes and their labels
+
+
 model_dfs <- list(
   "GPT-3.5 Autonomy" = gpt35_auto,
   "GPT-3.5 SWLS"     = gpt35_swl,
@@ -851,7 +885,7 @@ model_dfs <- list(
 facet_data <- model_dfs %>%
   imap_dfr(~ .x %>%
     mutate(Model = .y) %>%
-    select(prompt, outcome, correlation, disattenuated_correlation, RMSE, p_value_corrected, Model) %>%
+    select(prompt, outcome, correlation, disattenuated_correlation, RMSE, p_value_corrected, Model,CI_lower,CI_upper) %>%
     mutate(across(where(is.numeric), round, 3))
   ) %>%
   mutate(
@@ -875,11 +909,13 @@ facet_data <- model_dfs %>%
 
 ggplot(facet_data, aes(x = ModelType, y = outcome, fill = correlation)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = paste0(correlation, " (", disattenuated_correlation, ")")),
-            color = "black", size = 3.2,
-            fontface = ifelse(facet_data$p_value_corrected < 0.05, "bold", "plain")) +
-  geom_text(aes(label = sprintf("[%s]", round(RMSE, 3))),
-            color = "black", size = 2.5, vjust = 2.5) +
+  geom_text(aes(label = paste0(round(correlation, 2), "(", round(disattenuated_correlation, 2), ")"),
+              fontface = ifelse(p_value_corrected < 0.05, "bold", "plain")),
+          color = "black", size = 2.95) + 
+  geom_text(aes(label = sprintf("95%%CI: [%.2f, %.2f]", CI_lower, CI_upper)), 
+            color = "black", size = 2.5, vjust = 2) +  # Add CI below correlation
+  geom_text(aes(label = sprintf("RMSE: [%s]", round(RMSE, 3))), 
+            color = "gray30", size = 2.5, vjust = 3.5) +  # Add RMSE below CI
   scale_fill_gradient2(low = "dodgerblue", mid = "#FFFFCC", high = "#c44536") +
   geom_text(data = subset(facet_data, p_value_corrected < 0.05), 
             aes(label = "*", x = ModelType, y = outcome, hjust = 1),
