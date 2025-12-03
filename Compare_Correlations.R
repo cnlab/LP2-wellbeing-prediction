@@ -700,3 +700,6 @@ cat("\n========================================\n")
 cat("SUMMARY TABLE WITH TEST TYPES & DESCRIPTIONS\n")
 cat("========================================\n\n")
 print(comparison_summary, row.names = FALSE)
+
+
+View(comparison_summary)
